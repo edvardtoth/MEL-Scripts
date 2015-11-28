@@ -1,9 +1,13 @@
 #MEL Scripts
-------------
 
-Apart from my confidential, proprietary game-development scripting work I also created a number of freely available, more generic scripts which managed to accumulate well over 80.000 total downloads combined. I even received the honor of being included in Pixel Magazine’s “World’s Best Maya Developers” feature.
+A collection of legacy MEL scripts for Maya done between 2002-2006 by **Edvard Toth** (http://edvardtoth.com)
 
-Please note that even though they are not supported or updated anymore, your feedback is always appreciated: if you find them useful, or if you created updates, please just let me know. Also, please always refer to the script-headers for more thorough documentation.
+Apart from my confidential, proprietary game-development scripting work I also created a number of freely available, more generic scripts which in their heyday managed to accumulate well over 80.000 total downloads combined. I even received the honor of being included in Pixel Magazine’s `World’s Best Maya Developers` feature.
+
+Please note that even though the scripts are not supported or updated anymore, they may still prove to be useful. Please always refer to the script-headers for more thorough documentation.
+
+Contents
+----------
 
 * **curveTube [V1.11 01/2006]** The script offers a way of rapidly creating extruded/lofted tubular geometry with precisely controllable width at every cross-section using only two slightly offset curves of identical CV-counts.
 
