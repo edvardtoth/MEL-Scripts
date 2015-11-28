@@ -1,0 +1,81 @@
+
+//=============================
+// pointDistance v2.1 (03/2004)
+// by Edvard Toth 
+//
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports or if you created an updated version, please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//=============================
+// INSTALLATION: 
+// Copy the script into your Maya script-directory and start it with the pointDistance; command.
+// Please note that running the script repeatedly will function as an ON/OFF toggle.
+//
+// COMPATIBILITY NOTE: Tested with Maya 4.0 - 4.5 - 5.0 - 6.0  
+//
+// DESCRIPTION:
+// The script creates a persistent and dynamically updated HeadsUpDisplay-overlay that displays the direct distance 
+// between 2 selected points.
+//
+// Only point-like entities (vertices, CVs, curve-points, particles, lights, etc.) are evaluated, all other
+// types within the selection are ignored.
+// Distance-information is shown only if exactly 2 items are selected, otherwise the display resets to "0".
+//
+// Please note that even though the display dynamically updates with each new selection, it won't automatically 
+// update if the distance between the two selected items changes (e.g. two vertices are scaled).
+// In this case the two items have to be re-selected to get the accurate new distance-reading.
+//
+// Hint: The script can be an extremely useful tool for modeling game-environments, where using certain specific 
+// distances is usually a key factor required by gameplay.
+
+global proc pointDistance()
+
+{
+
+if (`headsUpDisplay -ex pointDistanceHUD`) 
+   {
+	headsUpDisplay -rem pointDistanceHUD;
+	return;
+   }
+
+headsUpDisplay -section          2
+               -block            0
+               -blockSize        "medium"
+               -label            "PointDistance"
+               -labelFontSize    "small"
+               -dataFontSize     "small"
+               -command 	     "pointDistanceCalc()"
+               -event            "SelectionChanged"
+               -nodeChanges      "attributeChange"
+               pointDistanceHUD;
+}
+
+global proc float pointDistanceCalc()
+
+{
+    float $PD_coord1[3];
+	float $PD_coord2[3];
+	float $PD_distance;
+
+	string $PD_points[] = `filterExpand -ex true -sm 4 -sm 5 -sm 22 -sm 28 -sm 30 -sm 31 -sm 39 -sm 40 -sm 41 -sm 42 -sm 47`;
+
+	if (size ($PD_points) !=2 )
+		{
+	$PD_distance = 0;	
+    headsUpDisplay -e -l "" pointDistanceHUD;
+    return $PD_distance;
+    	}
+	else
+	{
+	$PD_coord1 = `pointPosition $PD_points[0]`;
+	$PD_coord2 = `pointPosition $PD_points[1]`;
+
+	$PD_distance = sqrt( (($PD_coord1[0] - $PD_coord2[0]) * ($PD_coord1[0] - $PD_coord2[0])) + (($PD_coord1[1] - $PD_coord2[1]) * ($PD_coord1[1] - $PD_coord2[1]))+(($PD_coord1[2] - $PD_coord2[2]) * ($PD_coord1[2] - $PD_coord2[2])));
+
+    headsUpDisplay -e -l "PointDistance:" pointDistanceHUD;
+    return $PD_distance;
+	}
+}

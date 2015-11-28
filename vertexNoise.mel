@@ -1,0 +1,175 @@
+
+//=============================
+// vertexNoise v1.0 (12/2002)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports or if you created an updated version, please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//=============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the vertexNoise; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script applies fully adjustable random noise to selected vertices, even across multiple objects.
+// The type of the noise can either be uniform (based on the vertex-normals) or directional (based on the XYZ-axes).
+// 
+// A smoothing function with adjustable intensity is also available for fine-tuning purposes.
+//
+// Since the original vertex-selection is retained, the noise/smooth operations can be applied repeatedly until 
+// the desired result is reached.
+//
+// Note: the smoothing-operation doesn't work if vertices on multiple objects are selected.
+
+
+global proc vertexNoise()
+{
+
+global string $VertexWin = "vertexNoise";
+global string $noiseType;
+
+   if (`window -ex $VertexWin`) 
+   {
+      deleteUI $VertexWin;
+   }
+
+window -t "vertexNoise v1.0" -rtf 1 -s 1 -mnb 1 -mxb 0 $VertexWin;
+
+string $form = `formLayout -numberOfDivisions 100 VertexForm`;
+
+columnLayout -adjustableColumn false -columnWidth 300 -columnAlign "left" -rowSpacing 2 -cat "both" 2 VertexColumn;
+
+separator -h 5 -st "none";
+
+$noiseType = `radioButtonGrp -numberOfRadioButtons 2 -l "" -labelArray2 "Normal-Based Noise" "Axis-Based Noise" -cw 1 20 -cw 2 130 -sl 1` ;
+
+separator -h 5 -st "none";
+
+floatSliderGrp -field 1 -cw 1 70 -cw 2 40 -l "Normal Min" -pre 1 -min -10 -max 10 -v 0 umin;
+floatSliderGrp -field 1 -cw 1 70 -cw 2 40 -l "Normal Max" -pre 1 -min -10 -max 10 -v 0 umax;
+
+separator -h 8 -st "none";
+
+floatSliderGrp -field 1 -cw 1 70 -cw 2 40 -l "X-Axis Min" -pre 1 -min -10 -max 10 -v 0 xmin;
+floatSliderGrp -field 1 -cw 1 70 -cw 2 40 -l "X-Axis Max" -pre 1 -min -10 -max 10 -v 0 xmax;
+
+floatSliderGrp -field 1 -cw 1 70 -cw 2 40 -l "Y-Axis Min" -pre 1 -min -10 -max 10 -v 0 ymin;
+floatSliderGrp -field 1 -cw 1 70 -cw 2 40 -l "Y-Axis Max" -pre 1 -min -10 -max 10 -v 0 ymax;
+
+floatSliderGrp -field 1 -cw 1 70 -cw 2 40 -l "Z-Axis Min" -pre 1 -min -10 -max 10 -v 0 zmin;
+floatSliderGrp -field 1 -cw 1 70 -cw 2 40 -l "Z-Axis Max" -pre 1 -min -10 -max 10 -v 0 zmax;
+
+separator -h 8 -st "none";
+
+intSliderGrp -field 1 -cw 1 70 -cw 2 40 -l "Smoothing" -min 1 -max 50 -v 1 smoothit;
+
+setParent..;
+
+string $noisebutton = `button -w 150 -h 25 -label "Apply Noise" -command "doVertexNoise"`;
+string $smoothbutton = `button -w 50 -h 25 -label "Smooth" -command "smoothVertexNoise"`;
+string $resetbutton = `button -w 50 -h 25 -label "Reset" -command "vertexNoise"`;
+
+formLayout -edit
+
+-attachControl $noisebutton "top" 5 VertexColumn
+-attachForm $noisebutton "left" 10
+
+-attachControl $smoothbutton "top" 5 VertexColumn
+-attachControl $smoothbutton "left" 5 $noisebutton
+
+-attachControl $resetbutton "top" 5 VertexColumn
+-attachControl $resetbutton "left" 5 $smoothbutton
+
+$form;
+setParent ..;
+
+
+showWindow; 
+}
+
+
+global proc doVertexNoise()
+{
+
+   global string $VertexWin;
+   global string $noiseType;
+
+   int $Button = `radioButtonGrp -q -sl $noiseType`;
+
+   float $umin= `floatSliderGrp -q -v ($VertexWin+"|VertexForm|VertexColumn|umin")`;
+   float $umax= `floatSliderGrp -q -v ($VertexWin+"|VertexForm|VertexColumn|umax")`;
+
+   float $Xmin= `floatSliderGrp -q -v ($VertexWin+"|VertexForm|VertexColumn|xmin")`;
+   float $Xmax= `floatSliderGrp -q -v ($VertexWin+"|VertexForm|VertexColumn|xmax")`;
+   float $Ymin= `floatSliderGrp -q -v ($VertexWin+"|VertexForm|VertexColumn|ymin")`;
+   float $Ymax= `floatSliderGrp -q -v ($VertexWin+"|VertexForm|VertexColumn|ymax")`;
+   float $Zmin= `floatSliderGrp -q -v ($VertexWin+"|VertexForm|VertexColumn|zmin")`;
+   float $Zmax= `floatSliderGrp -q -v ($VertexWin+"|VertexForm|VertexColumn|zmax")`;
+
+	string $AllSelection[] = `ls -hl`;
+	string $selectedObjects[] = `ls -hl -o`;
+
+	sets -n NoiseVerts;
+
+	for ($selection in $AllSelection)
+
+	{
+		select $selection;
+
+		int $VertexCount[] = `polyEvaluate -v`;
+
+		for ( $i = 0; $i < $VertexCount[0]; $i++)
+		{
+			$PartOfSet = `sets -im NoiseVerts ($selection + ".vtx[" + $i + "]")`;
+
+			if ( $PartOfSet == 1 )
+
+			{
+
+				// GENERATE NORMAL-BASED NOISE
+
+				if ($Button == 1)  
+				{
+				float $noiseUni = `rand $umin $umax`;
+						
+				select ($selection + ".vtx[" + $i + "]");
+
+				moveVertexAlongDirection -n $noiseUni;
+				}				
+
+				// GENERATE AXIS-BASED NOISE
+
+				if ($Button == 2)  
+				{
+				float $noiseX = `rand $Xmin $Xmax`;
+				float $noiseY = `rand $Ymin $Ymax`;
+				float $noiseZ = `rand $Zmin $Zmax`;
+
+				select ($selection + ".vtx[" + $i + "]");
+
+				move -r $noiseX $noiseY $noiseZ;
+				}				
+			}
+		}
+	}	
+				// RESTORE SELECTION
+
+				select $selectedObjects;
+				hilite $selectedObjects;
+				changeSelectMode -component;
+				select -add NoiseVerts;
+				delete NoiseVerts;
+}
+
+global proc smoothVertexNoise()
+{
+
+global string $VertexWin;
+
+int $smoothit= `intSliderGrp -q -v ($VertexWin+"|VertexForm|VertexColumn|smoothit")`;
+polyAverageVertex -i $smoothit -ch 0;
+}

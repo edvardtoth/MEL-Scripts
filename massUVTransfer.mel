@@ -1,0 +1,93 @@
+//==============================
+// massUVTransfer v1.0 (06/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the massUVTransfer; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script transfers the UV coordinates of a specified object to any number of other objects of identical topology in one pass, 
+// eliminating the need to select individual object-pairs for the transfer.
+//
+
+global proc massUVTransfer()
+
+{
+
+	global string $MUVwin = "massUVTransfer";
+	global string $MUV_theobject;
+
+  	if (`window -ex $MUVwin`) 
+   	{
+      deleteUI $MUVwin;
+    	}
+
+	window -t "massUVTransfer" -rtf 1 -w 100 -h 100 -s 1 -mnb 1 -mxb 0 $MUVwin;
+
+	columnLayout -w 100 -columnWidth 100 -adjustableColumn false -cal "center" -rowSpacing 10 -cat "left" 10 MainColumn;
+
+	button -w 100 -label "Specify Object" -command "MUV_specify()" -annotation "Specifies an object to transfer UVs from.";
+
+	text -w 100 -al "center" -fn "smallBoldLabelFont" -l ($MUV_theobject) -annotation "This is the object currently specified to transfer UVs from.";
+
+	button -w 100 -label "Transfer UVs" -command "MUV_transfer()" -annotation "Transfers the UVs of the specified object to any number of selected objects.";
+
+	showWindow;
+}
+
+
+// *** SPECIFY ORIGIN-OBJECT
+
+global proc MUV_specify()
+
+{
+	string $MUV_original[] = `ls -sl -tr`;
+
+	if ( size ($MUV_original[0]) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Specify an object to transfer UVs from." -b Continue;
+	return;
+	}
+
+	global string $MUV_theobject;
+
+	$MUV_theobject = $MUV_original[0];
+	
+	massUVTransfer;
+}
+
+
+// *** TRANSFER UVs
+
+global proc MUV_transfer()
+
+{
+
+	global string $MUV_theobject;
+	string $MUV_selection[] = `ls -sl -tr`;
+
+	int $MUV_objectnum;
+
+	$MUV_objectnum = size ($MUV_selection);
+
+
+	if ( size ($MUV_selection[0]) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Select objects to transfer UVs to." -b Continue;
+	return;
+	}
+	
+
+	for ($i = 0; $i < $MUV_objectnum; $i++)
+	{
+	polyTransfer -vc 0 -uv 1 -v 0 -ao $MUV_theobject $MUV_selection[$i];
+	}
+}

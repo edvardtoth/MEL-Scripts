@@ -1,0 +1,124 @@
+
+//=============================
+// vertexLevels v1.0 (09/2003)
+// by Edvard Toth 
+// based on "pickvertex" by Becky Chow (becky.chow@ea.com) 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports or if you created an updated version, please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//=============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the vertexLevels; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script selects vertices based on their vertex colors, also taking an adjustable selection-threshold value into account.
+// The selection works on entire scenes, across multiple objects. The resulting set of selected vertices can be 
+// adjusted using separate basic RGB-controls. 
+// (Potential uses could include selecting and brightening up dark areas in a level without having to prelight the entire scene 
+// and possibly lose manual vertex-color tweaks.)
+//
+
+global proc vertexLevels ()
+{
+
+  if (`window -exists VL_win`)
+    deleteUI VL_win;
+  
+  window -widthHeight 280 120 -rtf 1 -s 1 -mnb 1 -mxb 0 -t "vertexLevels v1.0" VL_win;
+
+  columnLayout -w 280 -columnWidth 280 -adjustableColumn false -cal "center" -rowSpacing 1 -cat "left" 1 VL_column;
+    
+        separator -w 200 -height 5 -style "none";
+       
+        colorSliderGrp -cw 1 66 -cw 2 36 -cw 3 100 -l "Basecolor" -rgb 0.5 0.5 0.5 slider1;
+
+        separator -w 200 -height 5 -style "none";
+
+        floatSliderGrp -field 1 -v 0 -cw 1 65 -cw 2 35 -cw 3 100 -ann "The selection threshold: leave it at 0 to select base-color values ONLY." -l "Threshold" -min 0 -max 1 -pre 2 VL_threshold;      
+        floatSliderGrp -field 1 -v 0 -cw 1 65 -cw 2 35 -cw 3 100 -label "R Modifier" -min -1 -max 1 -pre 2 VL_modred;
+        floatSliderGrp -field 1 -v 0 -cw 1 65 -cw 2 35 -cw 3 100 -label "G Modifier" -min -1 -max 1 -pre 2 VL_modgreen;  
+        floatSliderGrp -field 1 -v 0 -cw 1 65 -cw 2 35 -cw 3 100 -label "B Modifier" -min -1 -max 1 -pre 2 VL_modblue;
+
+        separator -w 200 -height 5 -style "none";
+
+    	button -l "Select and Modify Vertex Colors" -w 260 -h 25 -c "VL_doit" button1;
+    
+  showWindow;  
+}
+
+global proc VL_doit( )
+{
+    
+     waitCursor -state on;
+
+     PolySelectConvert 3;
+
+     float $VL_modred = `floatSliderGrp -q -value VL_modred`; 
+     float $VL_modgreen = `floatSliderGrp -q -value VL_modgreen`; 
+     float $VL_modblue = `floatSliderGrp -q -value VL_modblue`;   
+
+     float $VL_threshold = `floatSliderGrp -q -value VL_threshold`; 
+  
+     float $VL_rgb[2] ;
+     float $VL_rgbbase[2] ;
+     float $VL_rgbup[2];
+     float $VL_rgbdn[2];   
+
+     string $VL_vertsA[];
+     int $VL_vertsize;
+     int $i = 0;	
+     int $j = 0;
+        
+     $VL_verts = `ls -sl -fl`;     
+     $VL_vertsize = size ($VL_verts);
+     
+     if ($VL_vertsize == 0)
+		{
+		confirmDialog -t "Oops..." -m "Please make a selection first." -b Continue;
+        waitCursor -state off;
+		return;
+		} 
+     
+     $VL_rgbbase = `colorSliderGrp -q -rgb slider1`;  
+             
+     $VL_rgbup[0] = (($VL_rgbbase[0]+$VL_threshold) >= 1) ? 1: ($VL_rgbbase[0]+$VL_threshold);  
+     $VL_rgbdn[0] = (($VL_rgbbase[0]-$VL_threshold) <= 0) ? 0: ($VL_rgbbase[0]-$VL_threshold);
+
+     $VL_rgbup[1] = (($VL_rgbbase[1]+$VL_threshold) >= 1) ? 1: ($VL_rgbbase[1]+$VL_threshold);  
+     $VL_rgbdn[1] = (($VL_rgbbase[1]-$VL_threshold) <= 0) ? 0: ($VL_rgbbase[1]-$VL_threshold);
+
+     $VL_rgbup[2] = (($VL_rgbbase[2]+$VL_threshold) >= 1) ? 1: ($VL_rgbbase[2]+$VL_threshold);  
+     $VL_rgbdn[2] = (($VL_rgbbase[2]-$VL_threshold) <= 0) ? 0: ($VL_rgbbase[2]-$VL_threshold);
+
+     for ($i = 0; $i < $VL_vertsize ; $i++ )
+     {
+        select -r $VL_verts[$i];
+        $VL_rgb = `polyColorPerVertex -q -rgb`;
+	
+	if (($VL_rgb[0]>=$VL_rgbdn[0]) && ($VL_rgb[0]<=$VL_rgbup[0]) && ($VL_rgb[1]>=$VL_rgbdn[1]) && ($VL_rgb[1]<=$VL_rgbup[1]) && ($VL_rgb[2]>=$VL_rgbdn[2]) && ($VL_rgb[2]<=$VL_rgbup[2])) 
+	{
+	    $VL_vertsA[$j] = $VL_verts[$i];
+	    $j++ ;
+	}
+     }        
+
+     int $VL_vertsAsize = size ($VL_vertsA);
+
+     select -cl;
+
+     for ($i = 0; $i < $VL_vertsAsize ; $i++ )
+     {
+     select -r $VL_vertsA[$i];
+     polyColorPerVertex -rel -r $VL_modred -g $VL_modgreen -b $VL_modblue;
+     }
+    
+     select -cl;
+     select $VL_vertsA;
+    
+     waitCursor -state off;
+}

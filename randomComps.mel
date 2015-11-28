@@ -1,0 +1,95 @@
+
+//==============================
+// randomComps v1.0 (10/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact us at:
+//
+// http://www.edvardtoth.com
+//
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the randomComps; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya 4.0 - 4.5 - 5.0 - 6.0
+//
+// DESCRIPTION:
+// The script makes it possible to randomly select a certain percentage of components (vertices, faces, edges and UVs)
+// on selected objects. 
+// The script's area of effect can also be limited/tuned even further by using it on an existing component-level selection.
+
+
+global proc randomComps()
+{
+
+global string $RC_window = "randomComps";
+
+   if (`window -ex $RC_window`) 
+   {
+      deleteUI $RC_window;
+   }
+
+window -t "randomComps V1.0" -w 260 -h 100 -rtf 1 -s 1 -mnb 1 -mxb 0 $RC_window;
+columnLayout -w 260 -adjustableColumn false -columnWidth 260 -columnAlign "center" -rowSpacing 4 -cat "both" 3 DistColumn;
+
+intSliderGrp -cw3 65 30 120 -l "Percentage" -ann "Defines what percentage of the available components is going to get randomly selected." -field true -min 0 -max 100 -v 1 -s 1 Percentage;
+
+radioButtonGrp -numberOfRadioButtons 4 -cw4 70 70 70 70 -annotation "The four component-types available for selection." -labelArray4 "Vertices" "Faces" "Edges" "UVs" -sl 1 Component;
+
+button -w 100 -label "Randomly Select Components" -command "doRandomComps()";
+
+showWindow ; 
+
+}
+
+global proc doRandomComps()
+{
+	int $RC_component = `radioButtonGrp -q -sl Component`;  
+
+    switch ($RC_component)
+    {
+    case 1:
+    PolySelectConvert 3;
+    break;       
+        
+    case 2:
+    PolySelectConvert 1;
+    break;
+     
+    case 3:
+    PolySelectConvert 2;
+    break;
+
+    case 4:
+    PolySelectConvert 4;
+    break;    
+    }
+   
+    string $RC_comps[];
+    $RC_comps = `ls -sl -fl`;
+
+    int $RC_size;
+    $RC_size = `size ($RC_comps)`;
+
+    int $RC_count = 0;
+
+    int $RC_percentage = `intSliderGrp -q -v Percentage`;
+   
+    select -cl;
+    
+  	for( $i=0; $i<($RC_size);$i++)
+    {
+    int $RC_random = rand (0, 100);
+
+        if ($RC_random <= $RC_percentage)
+        {
+        select -add $RC_comps[$i];
+        $RC_count++;
+        }       
+    }
+    
+    print ("\n==========");
+    print ("\nSelected "+$RC_count+" out of "+$RC_size+" potential components.\n\n");
+  
+}

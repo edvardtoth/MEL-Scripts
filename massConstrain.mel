@@ -1,0 +1,149 @@
+//=============================
+// massConstrain v1.1 (12/2002)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports or if you created an updated version, please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//=============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the massConstrain; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script constrains any number of selected objects to the normals and/or geometry of a specified target surface.
+//  
+// First select an object and use the "Specify Target Surface" button to make it the target surface.
+// Then select any number of objects, set the mode(s) of constraint (Normals/Geometry), the "Aim Vector" attribute that defines which 
+// axis of the objects is going to be constrained to the normals of the target surface, and press the "Constrain Objects" button.
+//
+// The script can leave behind the normal/geometry constraint nodes on each individual selected object so they can be manually 
+// adjusted while they maintain their alignment (they "stick") to the normals and/or geometry of the target surface.
+//
+// (Hint: useful for tasks such as properly orienting / arranging a large number of leaves to tree-branches. 
+// Works well together with the ParentToParticles and massReplicate scripts.)
+
+
+global proc massConstrain()
+
+{
+	global string $MC_conswin = "massConstrain";
+
+  	if (`window -ex $MC_conswin`) 
+   	{
+      deleteUI $MC_conswin;
+   	}
+
+	global string $MC_TargetName;
+
+
+	window -t "massConstrain" -widthHeight 200 80 -rtf 1 -s 1 -mnb 1 -mxb 0 $MC_conswin;
+
+	columnLayout -w 200 -columnWidth 200 -adjustableColumn false -cal "center" -rowSpacing 5 -cat "both" 10 ConsColumn;
+
+
+	button -w 100 -label "Specify Target Surface" -command "MC_setTarget()" -annotation "Select an object and use this button to specify it as the target surface.";
+
+	text -w 200 -al "center" -fn "smallBoldLabelFont" -l ($MC_TargetName) -annotation "This is the currently selected target object/surface.";
+
+	separator -height 5 -st "none";
+
+	checkBoxGrp -ncb 1 -v1 1 -cw2 160 30 -label "Constrain To Surface Normals" NormalConstrain;                        
+	checkBoxGrp -ncb 1 -v1 1 -cw2 160 30 -label "Constrain To Surface Geometry" GeoConstrain;                        
+	checkBoxGrp -ncb 1 -v1 1 -cw2 160 30 -label "Delete Constrain Nodes" DeleteConstrain;                        
+
+	separator -height 5 -st "none";
+
+	radioButtonGrp -numberOfRadioButtons 3 -cw4 80 30 30 30 -annotation "Defines which axis of the objects is going to be constrained to the normals of the target surface." -label "Aim Vector" -labelArray3 "x" "y" "z" -sl 2 AimVector;
+
+	separator -height 5 -st "none";
+
+	button -w 100 -label "Constrain Objects" -command "doConstrain()";
+
+	showWindow;
+}
+
+global proc MC_setTarget()
+
+{
+	string $MC_TheTarget[] = `ls -sl`;
+
+	if ( size ($MC_TheTarget[0]) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Select the target surface." -b "Continue";
+	return;
+	}
+
+	global string $MC_TargetName;
+	$MC_TargetName = $MC_TheTarget[0];
+
+	print "Now select any number of objects to constrain to the target surface.";
+
+	massConstrain;
+}
+
+
+global proc doConstrain()
+
+{
+	global string $MC_TargetName;
+
+	string $MC_AimButton = `radioButtonGrp -q -sl AimVector`;
+	string $MC_NormalButton = `checkBoxGrp -q -v1 NormalConstrain`;
+	string $MC_GeoButton = `checkBoxGrp -q -v1 GeoConstrain`;
+    string $MC_DeleteButton = `checkBoxGrp -q -v1 DeleteConstrain`;
+
+	string $MC_Selection[] = `ls -sl`;
+
+	if ( size ($MC_TargetName) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Please specify a target-surface first." -b "Continue";
+	return;
+	}
+
+	if ( size ($MC_Selection[0]) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Select objects to constrain to the target surface." -b "Continue";
+	return;
+	}
+
+	int $i;
+	int $MC_objectnum;
+	$MC_objectnum = size ($MC_Selection);
+
+	for ($i = 0; $i < $MC_objectnum; $i++)
+	{
+	
+		if ($MC_NormalButton == 1)
+		{
+			if ($MC_AimButton == 1)
+			{
+			normalConstraint -aimVector 1 0 0 -wut "vector" $MC_TargetName $MC_Selection[$i];
+			}
+
+			if ($MC_AimButton == 2)
+			{
+			normalConstraint -aimVector 0 1 0 -wut "vector" $MC_TargetName $MC_Selection[$i];
+			}
+
+			if ($MC_AimButton == 3)
+			{
+			normalConstraint -aimVector 0 0 1 -wut "vector" $MC_TargetName $MC_Selection[$i];
+			}
+		}
+			if ($MC_GeoButton == 1)
+			{
+			geometryConstraint $MC_TargetName $MC_Selection[$i];
+			}
+            
+            if ($MC_DeleteButton == 1)
+			{
+			delete -cn;
+			}
+
+	}
+return;
+}

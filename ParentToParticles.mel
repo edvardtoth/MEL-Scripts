@@ -1,0 +1,428 @@
+
+//=================================
+// ParentToParticles v3.0 (07/2004)
+// by Edvard Toth
+// (special thanks to Alex Carbonero)
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports, if you created an updated version, to check for updates or to make a donation please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==================================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the ParentToParticles; command.
+//
+// COMPATIBILITY NOTE: Tested with Maya 4.0 - 4.5 - 5.0 - 6.0
+//
+
+global proc ParentToParticles()
+
+{
+	global string $PP_window = "ParentToParticles";
+
+  	if (`window -ex $PP_window`) 
+   	{
+      deleteUI $PP_window;
+   	}
+
+	window -t "ParentToParticles V3.0" -rtf 1 -w 320 -s 1 -mnb 1 -mxb 0 $PP_window;
+
+	formLayout PP_ButtonForm;	
+
+	scrollLayout -cr 1 Scroll;
+
+	columnLayout -w 200 -columnWidth 200 -adjustableColumn 0 -cal "center" -rowSpacing 0 -cat "left" 5 MainColumn;
+
+
+// OPTIONS FRAME
+
+	frameLayout -label "Main Options" -collapse 0 -collapsable 1 -bs "etchedOut" OptionsFrame;
+	columnLayout -adjustableColumn 0 -cal "center" -rowSpacing 1 -cat "left" 5 OptionsColumn;
+	
+	global string $PP_TheObject;
+    global string $PP_TheTarget;
+
+	global string $PP_DupMode;
+	global string $PP_ScaleMode;
+
+	separator -h 3 -st "none" ;
+
+	$PP_DupMode = `radioButtonGrp -nrb 2 -label "Mode" -labelArray2 "Duplicate" "Instance" -cw 1 60 -cw 2 70 -sl 1` ;
+
+	separator -height 3 -st "none";
+
+    checkBoxGrp -ncb 1 -v1 0 -cw2 170 30 -label "Use Constraints?" UseConstrain;                         
+
+	separator -height 2 -st "none";
+
+    checkBoxGrp -ncb 1 -v1 1 -cw2 170 30 -label "Constrain To Surface Normals" NormalConstrain;                        
+	checkBoxGrp -ncb 1 -v1 1 -cw2 170 30 -label "Constrain To Surface Geometry" GeoConstrain;                        
+	checkBoxGrp -ncb 1 -v1 0 -cw2 170 30 -label "Auto-Delete Constrain Nodes" DeleteConstrain;                        
+
+	separator -height 3 -st "none";
+
+	radioButtonGrp -numberOfRadioButtons 3 -cw4 100 30 30 30 -annotation "Defines which axis of the objects is going to be constrained to the normals of the target surface." -label "Aim Vector" -labelArray3 "x" "y" "z" -sl 2 AimVector;
+
+	setParent MainColumn;
+
+
+// ROTATION FRAME
+
+	frameLayout -label "Rotation Options" -collapse 0 -collapsable 1 -bs "etchedOut"  RotationFrame;
+	columnLayout -adjustableColumn 0 -cal "center" -rowSpacing 0 -cat "left" 5 RotationColumn;
+
+	separator -h 3 -st "none" ;
+
+        intSliderGrp -cw3 50 30 100 -l "X Min" -field 1 -min -360 -max 360 -v 0 PP_rotminx ;
+	    intSliderGrp -cw3 50 30 100 -l "X Max" -field 1 -min -360 -max 360 -v 0 PP_rotmaxx ;
+
+	    intSliderGrp -cw3 50 30 100 -l "Y Min" -field 1 -min -360 -max 360 -v 0 PP_rotminy ;
+	    intSliderGrp -cw3 50 30 100 -l "Y Max" -field 1 -min -360 -max 360 -v 0 PP_rotmaxy ;
+
+    	intSliderGrp -cw3 50 30 100 -l "Z Min" -field 1 -min -360 -max 360 -v 0 PP_rotminz ;
+    	intSliderGrp -cw3 50 30 100 -l "Z Max" -field 1 -min -360 -max 360 -v 0 PP_rotmaxz ;
+
+	separator -h 3 -st "none" ;
+
+	setParent MainColumn;
+
+
+// SCALING FRAME
+
+    frameLayout -label "Scaling Options" -collapse 0 -collapsable 1 -bs "etchedOut" ScalingFrame;
+	columnLayout -adjustableColumn 0 -cal "center" -rowSpacing 0 -cat "left" 5 ScalingColumn;
+
+	separator -h 3 -st "none" ;
+
+	$PP_ScaleMode = `radioButtonGrp -numberOfRadioButtons 2 -label "Scaling" -labelArray2 "Uniform" "Non-Uniform" -cw 1 60 -cw 2 70 -sl 2` ;
+
+	separator -h 3 -st "none" ;
+
+	    floatSliderGrp -cw3 50 30 100 -l "Uni Min" -field 1 -min 0 -max 10 -v 1 PP_unimin ;
+	    floatSliderGrp -cw3 50 30 100 -l "Uni Max" -field 1 -min 0 -max 10 -v 1 PP_unimax ;
+
+	    separator -h 5 -st "none" ;
+
+	    floatSliderGrp -cw3 50 30 100 -l "X Min" -field 1 -min 0 -max 10 -v 1 PP_scalminx ;
+	    floatSliderGrp -cw3 50 30 100 -l "X Max" -field 1 -min 0 -max 10 -v 1 PP_scalmaxx ;
+
+    	floatSliderGrp -cw3 50 30 100 -l "Y Min" -field 1 -min 0 -max 10 -v 1 PP_scalminy ;
+	    floatSliderGrp -cw3 50 30 100 -l "Y Max" -field 1 -min 0 -max 10 -v 1 PP_scalmaxy ;
+
+    	floatSliderGrp -cw3 50 30 100 -l "Z Min" -field 1 -min 0 -max 10 -v 1 PP_scalminz ;
+    	floatSliderGrp -cw3 50 30 100 -l "Z Max" -field 1 -min 0 -max 10 -v 1 PP_scalmaxz ;
+
+	separator -h 3 -st "none" ;
+
+	setParent MainColumn;
+
+// ABOUT FRAME
+
+    frameLayout -label "About" -collapse true -collapsable true -bs "etchedOut" AboutFrame;
+	columnLayout -adjustableColumn false -cal "left" -rowSpacing 0 -cat "left" 5 AboutColumn;  
+    
+    string $PP_abouttext = "ParentToParticles V3.0 (07/2004)\n";
+    $PP_abouttext += "by Edvard Toth\n";
+    $PP_abouttext += "http://www.edvardtoth.com\n\n";
+
+    $PP_abouttext += "The script offers a potential way to rapidly and precisely place and adjust a large number of objects using particles as placement-proxies.\n";
+    $PP_abouttext += "Try the following steps as a quick tutorial:\n";
+    $PP_abouttext += "- Create a cube, select it and press the 'Set object' button.\n";
+    $PP_abouttext += "- Create a sphere that's much larger than the cube, select it, and press the 'Set target surface' button.\n";
+    $PP_abouttext += "- With the sphere selected, hit the 'Make Live' button. The sphere turns wireframe.\n";
+    $PP_abouttext += "- Press the 'Particle Tool' button (or right-click on it for options): now you can paint particles directly onto the surface of the sphere.\n";
+    $PP_abouttext += "- Press 'Enter' to finish placing particles, and select the resulting particle-field.\n";
+    $PP_abouttext += "- Make sure all checkboxes at the top except 'Auto-Delete Constrain Nodes' are checked.\n";
+    $PP_abouttext += "- Set some random scaling-values (rotation is meaningful only when no constraints are used).\n";
+    $PP_abouttext += "- Press the 'Perform Placement' button.\n\n";
+    $PP_abouttext += "A randomly scaled duplicate/instance of the original cube is placed at every particle, and each one is constrained to the surface of the sphere.";
+    $PP_abouttext += "Even if you move the cubes around they will 'stick' and maintain their orientation to the normals of the sphere-surface. To break the constraints use the 'Delete All Constraints' button.";
+    $PP_abouttext += "Feel free to experiment with other combinations of settings, e.g. using only normal-constraints, different aim-vectors, using no constraints at all, changing rotation/scaling settings, or the particle-tool.";
+    $PP_abouttext += "The script is particularly useful for tasks like placing rocks or plant-life on uneven terrain without excessive manual tweaking. \nEnjoy.\n";
+
+	separator -height 3 -st "none";
+
+    scrollField -w 240 -h 150 -ww 1 -ed 0 -fn "smallPlainLabelFont" -text $PP_abouttext;
+
+	separator -height 3 -st "none";
+
+	setParent MainColumn;
+
+
+// USER INTERFACE
+
+	setParent -top;	
+
+	$PP_objectbutton= `button -h 20 -label "Set Object" -command "PP_setobject()" -ann "Sets an object to be duplicated/instanced."`;
+    $PP_surfacebutton= `button -h 20 -label "Set Target Surface" -command "PP_settarget()" -ann "Sets an object as the target surface for the constrain-operations."`;
+    $PP_makelivebutton= `button -h 20 -label "Make Live" -command "MakeLive" -ann "Turns the selected object Live to make particles stick to its surface."`;
+    $PP_particlebutton= `button -h 20 -label "ParticleTool" -command "ParticleTool" -ann "Activate the particle placement tool."`;
+        
+	$PP_placementbutton= `button -h 30 -label "Perform Placement" -command "PP_placement()"`;
+
+	$PP_deletebutton= `button -h 20 -label "Delete All Constraints" -command "delete -all -cn" -ann "Deletes any residual constrain-nodes."`;
+	$PP_resetbutton= `button -h 20 -label "Reset" -command "ndiShrubber()"`;
+
+	formLayout -edit
+
+	-attachForm $PP_deletebutton "left" 1
+	-attachForm $PP_deletebutton "bottom" 1
+	-attachPosition $PP_deletebutton "right" 0 70
+
+	-attachControl $PP_resetbutton "left" 1 $PP_deletebutton
+	-attachForm $PP_resetbutton "bottom" 1
+	-attachForm $PP_resetbutton "right" 1
+
+	-attachForm $PP_placementbutton "left" 1
+	-attachControl $PP_placementbutton "bottom" 1 $PP_deletebutton 
+	-attachForm $PP_placementbutton "right" 1
+
+
+	-attachForm $PP_makelivebutton "left" 1
+	-attachControl $PP_makelivebutton "bottom" 1 $PP_placementbutton 
+	-attachPosition $PP_makelivebutton "right" 0 50
+
+	-attachControl $PP_particlebutton "left" 1 $PP_makelivebutton 
+	-attachControl $PP_particlebutton "bottom" 1 $PP_placementbutton 
+	-attachForm $PP_particlebutton "right" 1
+
+
+	-attachForm $PP_objectbutton "left" 1
+	-attachControl $PP_objectbutton "bottom" 1 $PP_makelivebutton 
+	-attachPosition $PP_objectbutton "right" 0 50
+
+	-attachControl $PP_surfacebutton "left" 1 $PP_objectbutton 
+	-attachControl $PP_surfacebutton "bottom" 1 $PP_particlebutton 
+	-attachForm $PP_surfacebutton "right" 1
+
+	-attachForm Scroll "top" 1
+	-attachForm Scroll "left" 1
+	-attachForm Scroll "right" 1
+	-attachControl Scroll "bottom" 1 $PP_objectbutton
+
+	PP_ButtonForm;
+	
+	popupMenu -p $PP_particlebutton;
+    menuItem -label "Particle Tool Options" -c "ParticleToolOptions";
+	
+	popupMenu -p $PP_objectbutton;
+    menuItem -label "Select Current Object" -c "select -r $PP_TheObject";
+	
+	popupMenu -p $PP_surfacebutton;
+    menuItem -label "Select Current Target Surface" -c "select -r $PP_TheTarget";
+	
+	
+	showWindow;
+}
+
+
+// THE PLACEMENT PROCESS
+
+global proc PP_placement()
+
+{
+	global string $PP_TheObject;
+    global string $PP_TheTarget;
+	
+	    // Do we have an object set?
+        	if ( size ($PP_TheObject) == 0 )
+	        {
+	        confirmDialog -t "Oops..." -m "Please set an object first." -b "Continue";
+	        return;
+	        }
+
+        // Are constraints used? Do we have a target surface set?
+	    string $PP_UseButton = `checkBoxGrp -q -v1 UseConstrain`;
+
+        	if ($PP_UseButton == 1)
+            {        
+                if ( size ($PP_TheTarget) == 0 )
+	            {
+	            confirmDialog -t "Oops..." -m "Please set a target surface first, or disable the use of constraints." -b "Continue";
+	            return;
+	            }
+            }
+    
+        // Do we have something selected? If yes, are they particles?
+   	    string $PP_objects[] = `ls -sl`;
+
+        	if ( size ($PP_objects) == 0 )
+	        {
+	        confirmDialog -t "Oops..." -m "Nothing is selected to define placement." -b "Continue";
+	        return;
+	        }
+        string $PP_particleCheckA[]=`ls -l $PP_objects[0]`;
+	    string $PP_particleCheckB[]=`listRelatives -f -ni -s $PP_particleCheckA[0]`;
+	
+        	if (nodeType($PP_particleCheckB[0])!="particle")
+            {
+	        confirmDialog -t "Oops..." -m "Only particles can be used to define placement." -b Continue;
+	        return;    
+            }
+
+
+	global string $PP_DupMode;
+	global string $PP_ScaleMode;
+
+	string $PP_NormalButton = `checkBoxGrp -q -v1 NormalConstrain`;
+	string $PP_GeoButton = `checkBoxGrp -q -v1 GeoConstrain`;
+    string $PP_DeleteButton = `checkBoxGrp -q -v1 DeleteConstrain`;
+	int $PP_AimButton = `radioButtonGrp -q -sl AimVector`;
+	
+	global string $PP_TheResult[];
+
+	string $PP_NewItem[];
+
+	int $PP_RadioButton = `radioButtonGrp -q -sl $PP_DupMode`;
+	int $PP_ScaleButton = `radioButtonGrp -q -sl $PP_ScaleMode`;
+	
+	int $PP_rotminx = `intSliderGrp -q -v PP_rotminx`;
+	int $PP_rotmaxx = `intSliderGrp -q -v PP_rotmaxx`;
+	int $PP_rotminy = `intSliderGrp -q -v PP_rotminy`;
+	int $PP_rotmaxy = `intSliderGrp -q -v PP_rotmaxy`;
+	int $PP_rotminz = `intSliderGrp -q -v PP_rotminz`;
+	int $PP_rotmaxz = `intSliderGrp -q -v PP_rotmaxz`;
+
+	float $PP_unimin = `floatSliderGrp -q -v PP_unimin`;
+	float $PP_unimax = `floatSliderGrp -q -v PP_unimax`;
+
+	float $PP_scalminx = `floatSliderGrp -q -v PP_scalminx`;
+	float $PP_scalmaxx = `floatSliderGrp -q -v PP_scalmaxx`;
+	float $PP_scalminy = `floatSliderGrp -q -v PP_scalminy`;
+	float $PP_scalmaxy = `floatSliderGrp -q -v PP_scalmaxy`;
+	float $PP_scalminz = `floatSliderGrp -q -v PP_scalminz`;
+	float $PP_scalmaxz = `floatSliderGrp -q -v PP_scalmaxz`;
+
+
+	for ($obj in $PP_objects)
+	{
+
+    	select $obj;
+
+		int $PP_ParticleCount = `particle -count -q`;
+
+		int $i;
+
+		for ($i = 0; $i < $PP_ParticleCount; $i++)
+		{
+				select -r ($obj + ".pt[" + $i + "]") ;
+				float $PP_WorldPos[3] = `particle -at worldPosition -or $i -q`;
+						
+				int $PP_rotX = rand ($PP_rotminx, $PP_rotmaxx);				
+				int $PP_rotY = rand ($PP_rotminy, $PP_rotmaxy);				
+				int $PP_rotZ = rand ($PP_rotminz, $PP_rotmaxz);	
+
+				float $PP_uni = rand ($PP_unimin, $PP_unimax);
+
+				float $PP_scalX = rand ($PP_scalminx, $PP_scalmaxx);
+				float $PP_scalY = rand ($PP_scalminy, $PP_scalmaxy);
+				float $PP_scalZ = rand ($PP_scalminz, $PP_scalmaxz);
+
+				select $PP_TheObject;
+
+				if ($PP_RadioButton == 1)
+				{
+				$PP_NewItem= `duplicate -rr`;
+				$PP_TheResult[$i]= $PP_NewItem[0];
+				}
+
+				if ($PP_RadioButton == 2)
+				{
+				$PP_NewItem= `instance`;
+				$PP_TheResult[$i]= $PP_NewItem[0];
+				}
+        
+				move -ws $PP_WorldPos[0] $PP_WorldPos[1] $PP_WorldPos[2];
+				rotate -os $PP_rotX $PP_rotY $PP_rotZ;
+						
+                        switch ($PP_ScaleButton)
+                        {
+    					case 1:
+						scale -r $PP_uni $PP_uni $PP_uni;
+						break;
+						
+						case 2:
+						scale -r $PP_scalX $PP_scalY $PP_scalZ;
+						break;
+						}
+
+
+        	if ($PP_UseButton == 1)
+            {        
+        		if ($PP_NormalButton == 1)
+	        	{
+                    switch ($PP_AimButton)
+                    {              		
+                    case 1:
+                    normalConstraint -aimVector 1 0 0 -wut "vector" $PP_TheTarget $PP_NewItem[0];
+			        break;
+            
+                    case 2:
+    			    normalConstraint -aimVector 0 1 0 -wut "vector" $PP_TheTarget $PP_NewItem[0];
+	    		    break;
+			
+                    case 3:
+			        normalConstraint -aimVector 0 0 1 -wut "vector" $PP_TheTarget $PP_NewItem[0];
+			        break;		
+                    }
+    		    }
+	    		if ($PP_GeoButton == 1)
+		    	{			    
+			    geometryConstraint $PP_TheTarget $PP_NewItem[0];
+			    }
+            }
+
+		}
+
+            if ($PP_DeleteButton == 1)
+			{
+		    select -r $PP_TheResult;
+			delete -cn;
+    		}
+	}
+    clear $PP_NewItem;
+    select -r $PP_TheResult;
+}
+
+
+
+// SET OBJECT
+
+global proc PP_setobject()
+
+{
+	string $PP_preObject[] = `ls -sl`;
+
+	if ( size ($PP_preObject [0]) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Please select an object." -b Continue;
+	return;
+	}
+
+	global string $PP_TheObject;
+	$PP_TheObject = $PP_preObject[0];
+
+	confirmDialog -t "Yeah!" -m ("The selected object is:  " + $PP_preObject[0]) -b "Continue";
+}
+
+
+// SET TARGET SURFACE
+
+global proc PP_settarget()
+
+{
+	string $PP_preTarget[] = `ls -sl`;
+
+	if ( size ($PP_preTarget[0]) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Please select a target surface." -b "Continue";
+	return;
+	}
+
+	global string $PP_TheTarget;
+	$PP_TheTarget = $PP_preTarget[0];
+
+	confirmDialog -t "Yeah!" -m ("The selected target surface is:  " + $PP_preTarget[0]) -b "Continue";
+}
+

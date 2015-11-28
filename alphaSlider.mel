@@ -1,0 +1,50 @@
+
+//=============================
+// alphaSlider v1.0 (12/2002)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports or if you created an updated version, please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//=============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the alphaSlider; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// A very simple script that creates a slider to interactively adjust vertex-alpha values.
+// The changes are instantly visible if the slider is dragged.
+// 
+// The script automatically converts existing selections into Vertices, providing additional versatility. (You can use
+// it to modify alpha-values of the entire object if no components are selected, or to adjust alpha-values of a previously
+// selected contiguous edge-loop, etc.)
+//
+// Note: on some configurations it may be necessary to use the "Apply Color" Maya-function at least once prior to 
+// using the script in order to force Maya to display the resulting alpha-values properly.
+//
+
+global proc alphaSlider()
+{
+
+if ( `window -exists alphaSlider` == true )
+	deleteUI alphaSlider;
+
+window -wh 250 50 -t "alphaSlider" -mxb 0 -mnb 1 -s 1 -rtf 1 -mb 0 -mbv 0 alphaSlider;
+
+columnLayout -w 250 -adjustableColumn false -columnWidth 250 -columnAlign "center" -rowSpacing 5 -cat "left" 3 AlphaColumn;
+			
+floatSliderGrp -cw 1 40 -cw 2 50 -l "Alpha" -f 1 -v 1 -pre 4 -min 0 -max 1 -cc "doAlpha()" AlphaValue;
+					
+showWindow alphaSlider;
+}
+
+
+global proc doAlpha()
+{
+	PolySelectConvert 3;
+	float $alpha = `floatSliderGrp -q -v AlphaValue`;
+	polyColorPerVertex  -a $alpha;
+}

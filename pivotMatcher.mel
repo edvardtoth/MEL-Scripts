@@ -1,0 +1,179 @@
+//==============================
+// pivotMatcher v1.0 (12/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the pivotMatcher; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+//
+// The script makes it possible to match the pivots of any number of selected objects to either the pivots of the same 
+// number of target objects, or to the pivot of one selected target object.
+// The selection-order is taken into account during the process.
+//
+
+global proc pivotMatcher ()
+{
+
+	global string $PMwin = "pivotMatcher";
+	global string $PM_selection;
+
+  	if (`window -ex $PMwin`) 
+   	{
+      deleteUI $PMwin;
+    }
+
+	window -t "pivotMatcher V1.0" -rtf 1 -w 200 -h 100 -s 1 -mnb 1 -mxb 0 $PMwin;
+
+    string $PM_form = `formLayout -numberOfDivisions 100 PM_Form`;
+
+
+	columnLayout -w 200 -columnWidth 200 -adjustableColumn false -cal "center" -rowSpacing 5 -cat "left" 1 MainColumn;
+
+	button -w 200 -label "Select Original Objects" -command "PM_select()" -annotation "Select object to move the pivots of.";
+
+	text -w 200 -al "center" -fn "smallBoldLabelFont" -l ($PM_selection) -annotation "Status line.";
+
+    setParent ..;
+
+	string $PM_xbutton = `button -w 100 -label "X to X" -command "PM_match()" -annotation "Match X number of original pivots to X number of selected target pivots."`;
+	string $PM_obutton = `button -w 100 -label "X to 1" -command "PM_matchone()" -annotation "Match X number of original pivots to the first selected target pivot."`;
+
+    formLayout -edit
+
+        -attachForm MainColumn "top" 1
+        -attachForm MainColumn "left" 1
+        -attachForm MainColumn "right" 1
+
+        -attachControl $PM_xbutton "top" 1 MainColumn
+        -attachForm $PM_xbutton "left" 1
+
+        -attachControl $PM_obutton "top" 1 MainColumn
+        -attachControl $PM_obutton "left" 1 $PM_xbutton
+
+        $PM_form;
+        setParent ..;
+
+	 showWindow;
+}
+
+
+global proc PM_select()
+
+{
+	global string $PM_origin[];
+	$PM_origin = `ls -sl`;
+
+    global int $PM_osize;
+    $PM_osize = `size $PM_origin`;
+
+	if ( $PM_osize == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Please make a selection." -b Continue;
+	return;
+	}
+
+	global string $PM_selection;
+
+    $PM_selection = ($PM_osize + " original objects selected.");
+    print "Now please select either an equal number of target objects, or one single target object.\n";
+	
+	pivotMatcher;
+}
+
+global proc PM_match()
+{
+
+    global string $PM_origin[]; 
+    global int $PM_osize;
+	global string $PM_selection;
+    
+    string $PM_target[] = `ls -sl`;
+    
+    int $PM_tsize = `size $PM_target`;
+        
+
+	if ( $PM_osize == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Please select original objects first." -b Continue;
+	return;
+	}  
+    
+    if ( $PM_tsize != $PM_osize )
+    {
+    confirmDialog -ma center -t "Oops..." -m ("Number of original and target objects don't match.\n\n You have " + $PM_tsize + " target objects selected.") -b Continue;
+    return;
+    }
+   
+    for ($i = 0; $i < $PM_tsize; $i++)
+    {
+    
+    float $PM_tpivot[] = `xform -q -ws -rp $PM_target[$i]`; 
+    xform -ws -piv $PM_tpivot[0] $PM_tpivot[1] $PM_tpivot[2] $PM_origin[$i];
+    
+    print ("\nMatched the pivot of " + $PM_origin[$i] + " to the pivot of " + $PM_target[$i] +".");    
+    }
+
+    clear $PM_origin;
+    clear $PM_target;
+    $PM_osize = 0;
+    $PM_tsize = 0;
+        
+    $PM_selection = "Matching completed.";
+    print "\n";      
+                    
+    pivotMatcher;
+}
+
+
+global proc PM_matchone()
+{
+
+    global string $PM_origin[]; 
+    global int $PM_osize;
+	global string $PM_selection;    
+     
+    string $PM_target[] = `ls -sl`;
+    
+    int $PM_tsize = `size $PM_target`;   
+
+	if ( $PM_osize == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Please select original objects first." -b Continue;
+	return;
+	}  
+    
+    if ( $PM_tsize == 0 )
+    {
+    confirmDialog -ma center -t "Oops..." -m "Please select at least one target object." -b Continue;
+    return;
+    }
+
+    float $PM_tpivot[] = `xform -q -ws -rp $PM_target[0]`; 
+   
+    for ($i = 0; $i < $PM_osize; $i++)
+    {
+    
+    xform -ws -piv $PM_tpivot[0] $PM_tpivot[1] $PM_tpivot[2] $PM_origin[$i];
+    
+    print ("\nMatched the pivot of " + $PM_origin[$i] + " to the pivot of " + $PM_target[0] +".");    
+    }
+
+    clear $PM_origin;
+    clear $PM_target;
+    $PM_osize = 0;
+    $PM_tsize = 0;
+        
+    $PM_selection = "Matching completed.";
+    print "\n";      
+        
+    pivotMatcher;
+}

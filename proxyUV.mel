@@ -1,0 +1,109 @@
+
+//==============================
+// proxyUV v1.0 (09/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact us at:
+//
+// http://www.edvardtoth.com
+//
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the proxyUV; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script uses a "proxy" NURBS-surface to project UV-coordinates onto a polygonal mesh: it offers a simple and very 
+// effective approach to texturing complex polygonal meshes, greatly reducing problems associated with overlapping and uneven,
+// severely stretched UVs.
+// 
+// The basic steps of the workflow are:
+// 1. Create the polygonal mesh.
+// 2. Create a very simple NURBS-surface that roughly follows / covers the surface of the mesh (although a more accurate 
+// NURBS-representation provides better results.)
+// 3. Select the mesh, then select the NURBS proxy.
+// 4. Run the script: the NURBS-surface will project its UVs onto the polygonal mesh, covering it with evenly laid out, almost
+// completely planar UVs. 
+//
+// Note: even though several other scripts also utilize the "closestPointOnSurface" node to achieve similar results, 
+// I belive this version is a simplified and highly streamlined implementation of this technique.
+//
+
+global proc proxyUV ()
+
+{
+    string $UV_sel[];
+    string $UV_mesh;
+    string $UV_nurbs;
+
+    int $UV_meshsize[];
+    int $UV_vertsize;
+
+    float $UV_vertpos[];
+    float $UV_posU;
+    float $UV_posV;
+
+    $UV_sel = `ls -sl`;
+
+    if (size ($UV_sel) < 2)
+    {
+    confirmDialog -t "Oops..." -m "Please select a polygon mesh and a NURBS surface." -b Continue;
+    return;
+    }  
+
+    $UV_mesh = $UV_sel[0];
+    $UV_nurbs = $UV_sel[1];
+
+    string $UV_meshcheck[] = `listRelatives -f -ni -s $UV_mesh`;
+    string $UV_nurbscheck[] = `listRelatives -f -ni -s $UV_nurbs`;
+            
+    
+    if (nodeType($UV_meshcheck[0]) != "mesh") 
+	{
+        confirmDialog -t "Oops..." -m "The first selected item is not a polygon mesh." -b Continue;
+	    return;
+	}
+
+    if (nodeType($UV_nurbscheck[0]) != "nurbsSurface") 
+	{
+        confirmDialog -t "Oops..." -m "The second selected item is not a NURBS surface." -b Continue;
+	    return;
+	}
+    waitCursor -state on;
+
+    if (`objExists proxyUVnode`)
+    {
+        delete proxyUVnode;
+    } 
+
+    createNode "closestPointOnSurface" -n "proxyUVnode";
+
+    connectAttr -f ($UV_nurbs + ".worldSpace[0]") proxyUVnode.inputSurface;
+
+    $UV_meshsize = `polyEvaluate -v $UV_mesh`;
+    $UV_vertsize = $UV_meshsize[0];
+
+    for ($i=0; $i < $UV_vertsize; $i++)
+	{
+
+	$UV_vertpos = `pointPosition -w ($UV_mesh + ".vtx[" + $i + "]")`;
+
+	setAttr "proxyUVnode.inPositionX" $UV_vertpos[0];
+	setAttr "proxyUVnode.inPositionY" $UV_vertpos[1];
+	setAttr "proxyUVnode.inPositionZ" $UV_vertpos[2];
+	
+	$UV_posU = `getAttr proxyUVnode.parameterU`;
+	$UV_posV = `getAttr proxyUVnode.parameterV`;
+	
+	$UV_sel = `polyListComponentConversion -fv -tuv ($UV_mesh + ".vtx[" + $i + "]")`;
+
+	for ($j=0; $j < size($UV_sel); $j++)
+		{		    
+		polyEditUV -r 0 -u $UV_posU -v $UV_posV $UV_sel[$j];
+		}
+	}        
+    delete proxyUVnode;
+    waitCursor -state off;
+}

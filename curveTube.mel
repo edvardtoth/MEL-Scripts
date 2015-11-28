@@ -1,0 +1,262 @@
+//=================================
+// curveTube V1.11 (10/2005)
+// by Edvard Toth
+// 
+// All Rights Reserved.
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports, if you created an updated version, or to check for updates please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==================================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the curveTube; command.
+//
+// COMPATIBILITY NOTE: Tested with Maya 4.0 / 4.5 / 5.0 / 6.0 / 6.5 / 7.0
+//
+
+
+global proc curveTube ()
+{
+
+
+global string $CT_window = "curveTube";
+
+   if (`window -ex $CT_window`) 
+   {
+      deleteUI $CT_window;
+   }
+
+    window -t "curveTube V1.11" -w 300 -h 100 -rtf 1 -s 1 -mnb 1 -mxb 0 $CT_window;
+
+
+    // SET PROPER NURBS-TO-POLY CONVERSION FOR LOFTING
+    nurbsToPolygonsPref -f 3; 
+
+
+    // FORM
+    string $CT_form = `formLayout -numberOfDivisions 100 CT_form`;
+
+    // BUTTONS
+    string $CT_dobutton = `button -w 200 -h 25 -label "Generate Hull Geometry" -command "do_curvetube" -ann ""`;
+    string $CT_selectbutton = `button -w 144 -h 20 -label "Select Section Curves" -command "if (`objExists $CT_circles[0]`) {select -r ($CT_circles);}" -ann "" CT_selectcurves`;
+    string $CT_selectbutton2 = `button -w 145 -h 20 -label "Select Hull Geometry" -command "if (`objExists $CT_surfaces[0]`) {select -r ($CT_surfaces);}" -ann "" CT_selecthull`;
+
+     // TABS
+    string $CT_tabs = `tabLayout -innerMarginWidth 2 -innerMarginHeight 10 CT_tablayout`;
+
+
+    // OPTIONS TAB
+    string $CT_tab1 = `columnLayout -w 300 -adjustableColumn false -columnWidth 300 -columnAlign "center" -rowSpacing 2 -cat "both" 2 OptColumn`;
+	
+	separator -height 2 -st "none";
+
+    intSliderGrp -cw3 85 40 100 -l "Number of sides" -ann "Sets the number of sides/sections for the output geometry." -field true -min 3 -max 128 -v 16 -s 1 CTnumsides;
+    intSliderGrp -cw3 85 40 100 -l "Section subdivs" -ann "Determines the additional number of subdivisions between each cross-section." -field true -min 1 -max 32 -v 1 -s 1 CTnumsubdivs;
+    floatSliderGrp -cw3 95 30 100 -l "Slimming factor" -ann "Specifies how closely will the geometry follow the control-curve. Higher values result in more smoothing/less precision." -field true -min 1 -max 5 -v 1 -pre 1 CTsmoothing;
+
+    separator -h 2 -st "none" ;
+    
+    radioButtonGrp -numberOfRadioButtons 2 -on2 "checkBoxGrp -e -v1 0 CTautomerge" -label "Geometry" -labelArray2 "Polygons" "NURBS" -ann "Determines the type of output geometry." -cw 1 100 -cw 2 75 -sl 1 CTgeotype;
+    checkBoxGrp -ncb 1 -v1 1 -cw2 215 30 -label "AutoDelete Section Curves / History" -ann "Automatically deletes all extra construction-geometry/history." CTautodelete; 
+    checkBoxGrp -ncb 1 -v1 1 -cw2 215 30 -on1 "radioButtonGrp -e -sl 1 CTgeotype" -label "AutoMerge Hull Geometry" -ann "Automatically merges geometry-slices into one contiguous mesh." CTautomerge; 
+  
+    setParent..;
+
+
+    // HELP TAB
+    string $CT_tab2 = `columnLayout -w 300 -adjustableColumn false -columnWidth 300 -columnAlign "center" -rowSpacing 2 -cat "both" 2 TabColumn`;
+   
+    string $CT_abouttext = "curveTube V1.0 by Edvard Toth\n";
+    $CT_abouttext += "http://www.edvardtoth.com\n\n";
+
+    $CT_abouttext += "The script offers a way of rapidly creating extruded/lofted tubular geometry with precisely controllable width at every cross-section using only two slightly offset curves of identical CV-counts.\n";
+    $CT_abouttext += "The primary curve is used to define the path of the extrusion, and the control (secondary) curve outlines the hull of the extrusion along the primary curve.\n\n";
+    $CT_abouttext += "In other words, at any given CV the width/thickness of the resulting extruded geometry cross-section is going to be determined by the distance between the CV of the primary curve and the corresponding CV of the control curve.\n";
+
+    scrollField -w 250 -h 150 -ww 1 -ed 0 -fn "smallPlainLabelFont" -text $CT_abouttext;
+
+	setParent ..;
+
+
+        formLayout -edit
+
+ 		-attachForm $CT_tabs "top"    1
+  		-attachForm $CT_tabs "left"   1
+  		-attachControl $CT_tabs "bottom" 1 $CT_dobutton 
+  		-attachForm $CT_tabs "right"  1
+
+        -attachNone $CT_dobutton "top" 
+        -attachForm $CT_dobutton "left" 1
+        -attachForm $CT_dobutton "right" 1
+        -attachControl $CT_dobutton "bottom" 1 $CT_selectbutton
+        
+        -attachNone $CT_selectbutton "top" 
+        -attachForm $CT_selectbutton "left" 1
+        -attachForm $CT_selectbutton "bottom" 1 
+        -attachPosition $CT_selectbutton "right"  1 50
+        
+        -attachNone $CT_selectbutton2 "top" 
+        -attachControl $CT_selectbutton2 "left" 1 $CT_selectbutton               
+        -attachForm $CT_selectbutton2 "bottom" 1 
+        -attachForm $CT_selectbutton2 "right" 1   
+       
+        $CT_form;
+
+        tabLayout -e -tabLabel $CT_tab1 "Options" -tabLabel $CT_tab2 "Help" $CT_tabs; 
+
+        showWindow $CT_window; 
+
+}
+
+
+global proc do_curvetube ()    
+{
+ 
+    // PARAMETERS
+    
+    int $CT_numsides = `intSliderGrp -q -v CTnumsides`;
+    int $CT_numsubdivs = `intSliderGrp -q -v CTnumsubdivs`;
+    float $CT_smoothing = `floatSliderGrp -q -v CTsmoothing`; 
+ 
+    int $CT_geotype = `radioButtonGrp -q -sl CTgeotype`;
+    int $CT_autodelete = `checkBoxGrp -q -v1 CTautodelete`;
+    int $CT_automerge = `checkBoxGrp -q -v1 CTautomerge`;
+ 
+ 
+        if ($CT_geotype == 2)
+        {
+        $CT_geotype = 0;
+        } 
+ 
+    // CHECK CURVES
+
+    string $CT_curves[] = `ls -sl`;
+    
+    if (size($CT_curves) != 2)
+    {
+	confirmDialog -t "Oops..." -m "Please select two curves." -b Continue;
+	return;
+	}
+
+	string $CT_curvecheckA[] = `ls -l $CT_curves[0]`;
+	string $CT_curvecheckB[] = `ls -l $CT_curves[1]`;
+	
+	string $CT_curvenodeA[] = `listRelatives -f -ni -s $CT_curvecheckA[0]`;
+	string $CT_curvenodeB[] = `listRelatives -f -ni -s $CT_curvecheckB[0]`;
+	
+	if (nodeType($CT_curvenodeA[0]) != "nurbsCurve" || nodeType($CT_curvenodeB[0]) != "nurbsCurve")
+    {
+	confirmDialog -t "Oops..." -m "Please make sure both selected objects are curves." -b Continue;
+	return;
+	} 
+       
+    // CHECK CV COUNT
+ 
+    select -r $CT_curves[0];
+    int $CT_cvnumA = `getAttr ($CT_curves[0] + ".spans")` + `getAttr ($CT_curves[0] + ".degree")`;
+
+    select -r $CT_curves[1];
+    int $CT_cvnumB = `getAttr ($CT_curves[1] + ".spans")` + `getAttr ($CT_curves[1] + ".degree")`;
+        
+    if ($CT_cvnumA != $CT_cvnumB)
+    {
+	confirmDialog -t "Oops..." -m "Please make sure the two selected curves have an identical number of CVs." -b Continue;
+	return;
+	}
+  
+    // GET DISTANCES BETWEEN CORRESPONDING CVs
+    // CREATE CIRCLES WITH THE PROPER RADIUS, POSITION AND ALIGN THEM
+ 
+    float $CT_distance[];
+    float $CT_coord1[3];
+    float $CT_coord2[3];
+ 
+    string $CT_circle[];
+    global string $CT_circles[];
+  
+    string $CT_surface[];
+    global string $CT_surfaces[];
+      
+  
+        for ($i=0 ; $i < $CT_cvnumA ; $i++)
+        {
+       
+        $CT_coord1 = `pointPosition ($CT_curves[0] + ".cv[" + $i + "]")`;
+        $CT_coord2 = `pointPosition ($CT_curves[1] + ".cv[" + $i + "]")`;
+    
+    	$CT_distance[$i] = sqrt( (($CT_coord1[0] - $CT_coord2[0]) * ($CT_coord1[0] - $CT_coord2[0])) + (($CT_coord1[1] - $CT_coord2[1]) * ($CT_coord1[1] - $CT_coord2[1]))+(($CT_coord1[2] - $CT_coord2[2]) * ($CT_coord1[2] - $CT_coord2[2])));
+   
+ 
+        $CT_circle = `circle -c 0 0 0 -nr 0 1 0 -sw 360 -r ($CT_distance[$i] / $CT_smoothing) -d 3 -ut 0 -tol 0.01 -s $CT_numsides -ch 0`;  // MIND THE DAMPENER
+
+        $CT_circles[$i] = $CT_circle[0];
+ 
+        xform -a -ws -t $CT_coord1[0] $CT_coord1[1] $CT_coord1[2] $CT_circles[$i];
+            
+        tangentConstraint -weight 1 -aimVector 0 1 0 -upVector 0 1 0 -worldUpType "vector" -worldUpVector 0 1 0 $CT_curves[0] $CT_circles[$i];
+              
+        }
+           
+    // LOFT THE CIRCLES
+         
+        for ($j=0 ; $j < ($CT_cvnumA-1) ; $j++)
+        {         
+
+        $CT_surface = `loft -ch 1 -u 1 -c 0 -ar 1 -d 1 -ss $CT_numsubdivs -rn 0 -po $CT_geotype -rsn true $CT_circles[$j] $CT_circles[$j+1]`;        
+        $CT_surfaces[$j] = $CT_surface[0];
+        }
+        
+        
+    // AUTODELETE - AUTOMERGE
+        
+        if ($CT_autodelete == 1)
+        {
+            select $CT_surfaces;
+            delete -ch;
+            select $CT_circles;
+            delete -cn;    
+            delete $CT_circles;
+            select $CT_surfaces;
+            
+            button -e -en 0 CT_selectcurves;          
+        }
+ 
+        else
+        {
+            select $CT_circles;
+            delete -cn;
+            
+            button -e -en 1 CT_selectcurves;      
+        }
+
+
+        if ($CT_automerge == 1)
+        {
+
+            string $CT_hull[];
+            string $CT_hullvertices[]; 
+    
+            $CT_hull = `polyUnite -ch 0 $CT_surfaces`;
+                    
+            select $CT_hull;                 
+            PolySelectConvert 3;
+            
+            $CT_hullvertices = `ls -sl -fl`;
+            int $CT_hullvertexnum = size ($CT_hullvertices);
+                  
+            string $CT_hullmerge = $CT_hull[0] + (".vtx[0:" + ($CT_hullvertexnum-1) + "]");
+            
+            polyMergeVertex  -d 0.01 -ch 0 $CT_hullmerge;        
+    
+            select $CT_hull;
+            PolySelectConvert 2;
+            polySoftEdge -a 180 -ch 0;
+    
+            $CT_surfaces = $CT_hull;  // MERGED HULL REPLACES SEGMENTS
+    
+            select $CT_hull;
+        }
+
+}

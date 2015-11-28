@@ -1,0 +1,202 @@
+
+//=================================
+// distributeOnCurve v2.0 (03/2004)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests 
+// or bug-reports please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//=================================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the distributeOnCurve; command.
+//
+// COMPATIBILITY NOTE: Tested with Maya 4.0 - 4.5 - 5.0 - 6.0 - 7.0
+//
+// DESCRIPTION:
+// The script makes it possible to create a number of duplicates/instances of a specified object, and distribute them 
+// along a curve.
+// The distribution can also be randomized, and the "Orient Objects To Curve Flow" function can constrain the orientation
+// of the selected objects to follow the tangency of the curve using the axis specified in the "Aim Vector" setting. 
+// (For example, this could be useful for properly orienting wooden planks in a winding walkway.)
+//
+// Checking the "Auto-Delete Constrain Nodes" checkbox or using the "Clean Residual Constrain Nodes" button will remove 
+// all leftover nodes created by the constrain-operation.
+
+
+global proc distributeOnCurve()
+{
+
+global string $DC_TheObj[];
+
+
+   global string $DC_window = "distributeOnCurve";
+
+   if (`window -ex $DC_window`) 
+   {
+      deleteUI $DC_window;
+   }
+
+window -t "distributeOnCurve V2.0" -w 300 -h 100 -rtf 1 -s 1 -mnb 1 -mxb 0 $DC_window;
+
+string $DC_form = `formLayout -numberOfDivisions 100 DC_form`;
+
+columnLayout -w 300 -adjustableColumn false -columnWidth 300 -columnAlign "center" -rowSpacing 4 -cat "both" 5 DistColumn;
+
+intSliderGrp -cw3 85 40 100 -l "Object Amount" -ann "Defines the number of objects to be created." -field true -min 2 -max 2000 -v 10 -s 1 ObjNum;
+floatSliderGrp -cw3 95 30 100 -l "Random Min" -ann "Defines the randomness of object-distribution along the curve." -field true -min 0 -max 2 -v 1 -pre 1 rndA;
+floatSliderGrp -cw3 95 30 100 -l "Random Max" -ann "Defines the randomness of object-distribution along the curve." -field true -min 0 -max 2 -v 1 -pre 1 rndB;
+
+separator -h 2 -st "none" ;
+
+radioButtonGrp -numberOfRadioButtons 2 -label "Mode" -labelArray2 "Duplicate" "Instance" -cw 1 85 -cw 2 85 -sl 1 DupType;
+
+checkBoxGrp -ncb 1 -v1 1 -cw2 200 30 -label "Orient Objects To Curve Flow" -ann "Aligns and constrains the orientation of the selected objects to follow the tangency of the curve." TangentConstrain; 
+checkBoxGrp -ncb 1 -v1 0 -cw2 200 30 -label "Auto-Delete Constrain Nodes" -ann "Automatically deletes the residual nodes created by the constrain-operation." DeleteConstrain; 
+
+
+radioButtonGrp -numberOfRadioButtons 3 -cw4 130 30 30 30 -annotation "Defines which axis of the objects is going to be constrained to the tangency of the target curve." -label "Aim Vector" -labelArray3 "x" "y" "z" -sl 2 AimVector;
+
+separator -h 2 -st "none" ;
+
+setParent..;
+
+string $DC_objectbutton = `button -w 100 -h 20 -label "Specify Object" -command "DCspecifyObj" -ann "Specifies the object to be duplicated and distributed on a curve."`;
+string $DC_applybutton = `button -w 190 -h 20 -label "Distribute Objects On Curve" -command "doDistributeOnCurve()" -ann "Distributes the specified object on the selected curve."`;
+string $DC_cleanbutton = `button -w 292 -h 20 -label "Clean Residual Constrain Nodes" -command "delete -all -cn;" -ann "Deletes the residual nodes created by the constrain-operation."`;
+
+
+formLayout -edit
+
+-attachControl $DC_objectbutton "top" 3 DistColumn
+-attachForm $DC_objectbutton "left" 2
+
+-attachControl $DC_applybutton "top" 3 DistColumn
+-attachControl $DC_applybutton "left" 2 $DC_objectbutton
+
+-attachControl $DC_cleanbutton "top" 3 $DC_objectbutton
+-attachForm $DC_cleanbutton "left" 2
+
+$DC_form;
+
+ showWindow $DC_window; 
+
+}
+
+
+global proc doDistributeOnCurve()
+{
+
+    global string $DC_TheObj[];
+
+	if ( size ($DC_TheObj [0]) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Please specify an object first." -b Continue;
+	return;
+	}
+
+    int $DC_objnum = `intSliderGrp -q -v ObjNum`;
+	float $DC_rndmin = `floatSliderGrp -q -v rndA`;
+	float $DC_rndmax = `floatSliderGrp -q -v rndB`;
+
+    int $DC_DupType = `radioButtonGrp -q -sl DupType`;
+
+	string $DC_TangentButton = `checkBoxGrp -q -v1 TangentConstrain`;
+	string $DC_DeleteButton = `checkBoxGrp -q -v1 DeleteConstrain`;
+	int $DC_AimButton = `radioButtonGrp -q -sl AimVector`;
+
+    string $DC_NewItem[];
+	global string $DC_Result[];
+
+
+    string $DC_curve[] = `ls -sl`;
+
+	if (size($DC_curve[0]) == 0)
+    {
+	confirmDialog -t "Oops..." -m "Please select a valid curve." -b Continue;
+	return;
+	}
+
+	string $DC_curvea[]=`ls -l $DC_curve[0]`;
+	string $DC_curveb[]=`listRelatives -f -ni -s $DC_curvea[0]`;
+	
+	if (nodeType($DC_curveb[0])!="nurbsCurve")
+    {
+	confirmDialog -t "Oops..." -m "Please select a valid curve." -b Continue;
+	return;
+	}
+
+			for($i=0;$i<($DC_objnum);$i++)
+            {
+	   		    
+	   		    select $DC_TheObj[0];
+
+
+                // DUPLICATION
+				if ($DC_DupType == 1)
+				{
+				$DC_NewItem= `duplicate -rr`;
+				$DC_Result[$i]= $DC_NewItem[0];
+				}
+
+				if ($DC_DupType == 2)
+				{
+				$DC_NewItem= `instance`;
+				$DC_Result[$i]= $DC_NewItem[0];
+				}			
+
+					float $DC_rnd=rand ($DC_rndmin,$DC_rndmax);		
+					float $DC_div=((float)$i)/($DC_objnum-1);
+					float $DC_finalcalc=$DC_div*$DC_rnd;
+
+					
+					float $DC_point[]=`pointOnCurve -pr $DC_finalcalc -top 1 -p $DC_curve[0]`;
+					xform -a -ws -t $DC_point[0] $DC_point[1] $DC_point[2] $DC_Result[$i];
+
+
+					if ($DC_TangentButton == 1)
+					{
+						switch ($DC_AimButton)
+						{			
+						case 0:
+						tangentConstraint -aim 1.0 0.0 0.0 -wut "scene" $DC_curve[0] $DC_Result[$i]; 
+						break;
+					
+						case 1:
+						tangentConstraint -aim 0.0 1.0 0.0 -wut "scene" $DC_curve[0] $DC_Result[$i]; 
+						break;
+
+						case 2:
+						tangentConstraint -aim 0.0 0.0 1.0 -wut "scene" $DC_curve[0] $DC_Result[$i]; 
+						break;
+						}
+					
+						if ($DC_DeleteButton == 1)
+						{
+						delete -cn;
+						}
+				}
+		}
+select -cl;
+}
+
+
+// *** SPECIFY OBJECT
+
+global proc DCspecifyObj()
+
+{
+	string $DC_selection[] = `ls - sl`;
+
+	if ( size ($DC_selection [0]) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Please specify an object." -b Continue;
+	return;
+	}
+
+	global string $DC_TheObj[];
+	$DC_TheObj = $DC_selection;
+
+	confirmDialog -t "DONE" -m ("The specified object is:  " + $DC_TheObj[0]) -b "Continue";
+}

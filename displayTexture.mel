@@ -1,0 +1,96 @@
+//==============================
+// displayTexture v1.0 (01/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the displayTexture; command.
+//
+// COMPATIBILITY NOTE: Tested with Maya 4.0 - 5.0 - 6.0 - 6.5
+//
+// DESCRIPTION:
+// The script makes it possible to view the bitmap-texture assigned to a selected polygonal face with a single click,
+// using any external image-viewer that accepts command-line input (fcheck, ACDSee, IrfanView etc.)
+//
+// The location of the image-viewer application has to be specified in the "DT_viewer" variable below.
+// 
+// The way the script works is:
+// 1. Select a face (no multiple face-selection is allowed).
+// 2. Apply the script (HINT: For quick access it's recommended to create a shelf-button/menu-item for the script).
+// 3. The specified viewer displays the texture applied to the selected face.
+// 
+// The script also shows the name and full path of the viewed texture-file in the "Command Feedback" line at the bottom
+// of the screen, and provides additional details about the texture in the "Script Editor" window.
+//
+
+global proc displayTexture ()
+{
+
+// =====================================================
+	string $DT_viewer = "C:/Program Files/ACD Systems/ACDSee/ACDSee.exe";
+//
+//	SET THE LOCATION OF THE EXTERNAL VIEWER ABOVE 
+//	MAKE SURE TO USE "/" INSTEAD OF "\" 
+//	DO NOT USE SPACES
+//======================================================
+
+
+	string $DT_selection[] = `ls -flatten -sl`;
+
+		if ( size ($DT_selection) < 1)
+		{
+		confirmDialog -t "Oops..." -m "No faces selected." -b Continue;
+		return;
+		}
+
+		if ( size ($DT_selection) > 1)
+		{
+		confirmDialog -t "Oops..." -m "Multiple faces selected." -b Continue;
+		return;
+		}
+
+
+	string $DT_array[] = `listSets -type 1 -o $DT_selection[0]`;
+		
+		if (size ($DT_array) < 1)
+		{
+		confirmDialog -t "Oops..." -m "No faces selected." -b Continue;
+		return;
+		}
+
+	string $DT_preshader = `connectionInfo -sfd ($DT_array[0] + ".surfaceShader")`;
+	string $DT_arraysplit[];
+	$numTokens = `tokenize $DT_preshader "." $DT_arraysplit`;
+
+	$DT_shader = $DT_arraysplit[0];
+	
+
+	string $DT_files[] = `listConnections -t file $DT_shader`;
+
+		if ( size ($DT_files[0]) < 1)
+		{
+		confirmDialog -t "Oops..." -m "No texture to display." -b Continue;
+		return;
+		}
+
+	string $DT_TheTexture = `getAttr ($DT_files[0] + ".fileTextureName")`; 
+
+
+	print ("\n" + "--------------------" + "\n");
+	print (" VIEWER LOCATION: " + $DT_viewer + "\n\n");
+	print (" SELECTED FACE: " + $DT_selection[0] + "\n");
+	print (" SHADING GROUP: " + $DT_array[0] + "\n");
+	print (" SHADER: " + $DT_shader + "\n");
+	print (" FILE: " + $DT_files[0] + "\n");
+	print (" TEXTURE: " + $DT_TheTexture + "\n\n");
+
+	
+	// LAUNCH EXTERNAL VIEWER
+	
+	system ("start " + $DT_viewer + " " + $DT_TheTexture);
+}

@@ -1,0 +1,203 @@
+
+//==============================
+// sceneCleanUp v1.1 (07/2003)
+// by Alex Carbonero & Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact us at:
+//
+// http://www.edvardtoth.com
+// http://www.alexcarbonero.com
+// 
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the sceneCleanUp; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script deletes numerous leftover nodes (links, brush-nodes, script-nodes, unconnected intermediate objects etc.) 
+// normally unaffected by deleting history or optimizing the scene. It also eliminates excess "stacked" vertex-color data.
+// While individual results will vary depending on application, in many cases the script can drastically reduce the 
+// size of large scenes.
+//
+
+global proc sceneCleanUp()
+{
+	waitCursor -state on;
+	    
+	string $SC_listOS[] = `listConnections -s 1 -p 1 defaultObjectSet.message`;
+	string $SC_listLS[] = `listConnections -s 1 -p 1 defaultLightSet.message`;
+	string $SC_listMes[] = `listConnections -s 1 -p 1 initialShadingGroup.message`;
+	string $SC_scriptnodes[] = `ls -type script`;
+
+	string $SC_discnodes[];
+	string $SC_delscripts[];
+
+	int $i=0;
+
+
+// DISCONNECT AND DELETE NODES
+
+
+	for ( $SC_os in $SC_listOS )
+
+	{
+		disconnectAttr defaultObjectSet.message $SC_os;
+		$SC_discnodes[$i] = $SC_os;
+		$i++;
+	}
+
+	for ( $SC_ls in $SC_listLS )
+
+	{
+		disconnectAttr defaultLightSet.message $SC_ls;
+		$SC_discnodes[$i] = $SC_ls;
+		$i++;
+	}
+
+
+	for ( $SC_mes in $SC_listMes )
+
+	{
+		disconnectAttr initialShadingGroup.message $SC_mes;
+		$SC_discnodes[$i] = $SC_mes;
+		$i++;
+	}
+
+	int $i=0;	
+
+	for ($SC_script in $SC_scriptnodes)
+	{
+		if ((`getAttr ($SC_script+".scriptType")`) == 0);
+		{
+		delete $SC_script;
+		$SC_delscripts[$i] = $SC_script;
+		}
+	}
+
+
+// DELETE INTERMEDIATE OBJECTS
+
+	string $SC_selection[] = `ls -l -type "mesh" -type "nurbsSurface"` ;
+	string $SC_intobjs[];
+	int $i=0;
+	for ($SC_obj in $SC_selection)
+		{
+		string $SC_listcons[] = `listConnections -sh 1 $SC_obj`;
+
+		if ( `size $SC_listcons` <= 1   )
+			{
+			if ( `size $SC_listcons` == 0  && (`getAttr ($SC_obj + ".intermediateObject")` ) == 1)
+				{
+				delete $SC_obj;
+				$SC_intobjs[$i] = $SC_obj;
+				$i++;
+				}
+			else
+				{
+
+				if (  `nodeType  $SC_listcons[0] `== "displayLayer" )
+					{
+					delete $SC_obj;
+					$SC_intobjs[$i] = $SC_obj;
+					$i++;
+					}
+				}
+			}
+		}
+
+// DELETE BRUSH-NODES
+
+	string $SC_brushnodes[] = `ls -typ brush`; 
+
+	for ($SC_brush in $SC_brushnodes)
+	{ 
+	delete $SC_brush; 
+	} 
+
+// OPTIMIZE VERTEX-COLOR INFORMATION
+
+	string $SC_meshes[] = `ls -type mesh`;
+	select $SC_meshes;
+
+	PolySelectConvert 3;
+	
+	string $SC_vertices[] = `ls -sl -fl`;
+	int $SC_vertexnum = `size($SC_vertices)`;
+		
+	
+	if (`size $SC_meshes` != 0)
+	{
+
+		float $SC_red[];
+	
+		$SC_red = `polyColorPerVertex -q -r`;
+		
+		float $SC_green[];
+		
+		$SC_green = `polyColorPerVertex -q -g`;
+	
+		float $SC_blue[];
+	
+		$SC_blue = `polyColorPerVertex -q -b`;
+
+		float $SC_alpha[];
+	
+		$SC_alpha = `polyColorPerVertex -q -a`;
+	
+	
+		polyColorPerVertex -r 0 -g 0 -b 0 -a 1;
+	
+		delete -all -constructionHistory;
+	
+		select -cl;
+	
+		for ($i = 0; $i < ($SC_vertexnum); $i++)
+		{
+			select $SC_vertices[$i];
+			polyColorPerVertex -r $SC_red[$i] -g $SC_green[$i] -b $SC_blue[$i] -a $SC_alpha[$i];
+		}
+	}
+
+	select -cl;
+
+
+// PRINT RESULTS
+
+	print "\n\nB E G I N  C L E A N U P";
+	print "\n====================\n";
+	print ("Disconnected attributes of "+ (`size $SC_discnodes`) + " nodes.\n");
+	print $SC_discnodes;
+
+	print "====================\n";
+	print ("Deleted "+ (`size $SC_delscripts`) + " script-nodes.\n");
+	print $SC_delscripts;
+
+	print "====================\n";
+	print ("Deleted "+ (`size $SC_intobjs`) + " intermediate objects.\n");
+	print $SC_intobjs;
+
+	print "====================\n";
+	print ("Deleted "+ (`size $SC_brushnodes`) + " brush-nodes.\n");
+
+	print "====================\n";
+
+
+	if (`size $SC_meshes` == 0)
+	{
+	print ("Skipped vertex-color optimization - no relevant geometry found.\n");
+	}
+
+	else
+	{
+	print ("Optimized the vertex-color data of " + ($SC_vertexnum) + " vertices.\n");
+	}
+
+	print "====================\n";
+	print "E N D  C L E A N U P\n\n";
+
+	waitCursor -state off;
+    
+	confirmDialog -t "sceneCleanUp" -m "Cleanup process complete. Please refer to the script-editor for details." -b Continue;
+}

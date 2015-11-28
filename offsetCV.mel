@@ -1,0 +1,122 @@
+
+//============================================
+// offsetCV v2.0 (12/2002)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests 
+// or bug-reports please contact me at:
+//
+// http://www.edvardtoth.com
+//
+// Thanks to Alex Carbonero for the original code-snippet.
+//============================================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the offsetCV; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script places/spreads the CVs of a curve evenly along the Y axis.
+// The placement of CVs can be determined by the OFFSET (the Y-distance between each CV) or the SPAN
+// (the total Y-distance between the first and last CV of the curve). 
+// The starting Y-position for the first CV can also be specified.
+//
+// (All values handled as negative/positive floating values with 4-digit precision.)
+//
+// Hint: useful for creating accurate roller-coaster or slide-like surfaces.
+//
+
+global proc offsetCV()
+{
+
+global string $CVwin = "offsetCV";
+global string $offsetType;
+
+   if (`window -ex $CVwin`) 
+   {
+      deleteUI $CVwin;
+   }
+
+window -t "offsetCV" -w 300 -h 100 -rtf 1 -s 1 -mnb 1 -mxb 0 $CVwin;
+columnLayout -w 300 -adjustableColumn false -columnWidth 300 -columnAlign "center" -rowSpacing 2 -cat "both" 5 CVColumn;
+
+separator -h 5 -st "none";
+
+$offsetType = `radioButtonGrp -numberOfRadioButtons 2 -l "" -labelArray2 "Based On Offset" "Based On Span" -cw 1 50 -cw 2 110 -sl 1` ;
+
+separator -h 5 -st "none";
+
+floatFieldGrp -annotation "Starting Y-position for the first CV of the curve." -numberOfFields 1 -l "Starting Y-Position" -pre 4 -v1 0 Ypos;
+
+separator -h 5 -st "none";
+
+floatFieldGrp -annotation "The distance between each CV of the curve." -numberOfFields 1 -l "Y-Axis Offset" -pre 4 -v1 0 offset;
+text -l "or";
+floatFieldGrp -annotation "The total distance between the first and last CV of the curve." -numberOfFields 1 -l "Y-Axis Span" -pre 4 -v1 0 spread;
+
+separator -h 5 -st "none";
+
+button -label "Apply" -command "offsetProcess";
+
+showWindow ; 
+}
+
+global proc offsetProcess()
+{
+
+global string $CVwin;
+global string $offsetType;
+
+global float $offsetA;
+global float $spread;
+
+global float $YposA;
+global float $YposB;
+
+$offsetA = `floatFieldGrp -q -v1 ($CVwin+"|CVColumn|offset")`;
+$spread = `floatFieldGrp -q -v1 ($CVwin+"|CVColumn|spread")`;
+
+$YposA = `floatFieldGrp -q -v1 ($CVwin+"|CVColumn|Ypos")`;
+$YposB = `floatFieldGrp -q -v1 ($CVwin+"|CVColumn|Ypos")`;
+
+int $Button = `radioButtonGrp -q -sl $offsetType`;
+
+
+string $curvename[] = `ls -sl`;
+
+int $i = 0;
+	
+if (objExists($curvename[0])&&(nodeType($curvename[0])=="transform"))
+{
+	select $curvename[0];
+
+	int $degree = `getAttr ($curvename[0]+".degree")`;
+	int $spans = `getAttr ($curvename[0]+".spans")`;
+
+	int $CVs =  ($degree + $spans);
+	float $offsetB = $spread / ($CVs-1); 
+
+	for ($i = 0; $i<$CVs; $i++)
+	{
+		select ($curvename[0]+".cv["+$i+"]");
+
+		float $xyz[] = `getAttr ($curvename[0]+".cv["+$i+"]")`;
+    
+		//MOVE BASED ON OFFSET
+		if ($Button == 1)  
+		{
+		move -a -ws $xyz[0] $YposA $xyz[2] ;
+		$YposA = ($offsetA + $YposA);
+		}
+
+		//MOVE BASED ON SPAN
+		if ($Button == 2)
+		{  
+		move -a -ws $xyz[0] $YposB $xyz[2] ;
+		$YposB = ($offsetB + $YposB);
+		}
+	}
+return;
+}
+confirmDialog -m "Please select a curve." -b "Continue";
+}

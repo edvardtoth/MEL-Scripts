@@ -1,0 +1,275 @@
+
+//=============================
+// massReplicate v2.1 (01/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports, if you created an updated version, or to check for updates please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//=============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the massReplicate; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script creates an interface to mass-duplicate/instance a specified object, and provides randomizable 
+// rotation/scaling on all axes for the object-iterations. 
+//
+// The resulting duplicates/instances can either be scattered randomly in an area, or placed at regular intervals
+// using XYZ offsets.
+//
+// The object (polygonal mesh, NURBS surface, curve, group, etc. ) can be specified by selecting it and clicking the "Specify Object" button.
+//
+
+
+global proc massReplicate()
+
+{
+	global string $masswin = "massReplicate";
+
+  	if (`window -ex $masswin`) 
+   	{
+      deleteUI $masswin;
+   	}
+
+	window -t "massReplicate V2.1" -rtf 1 -w 400 -h 100 -s 1 -mnb 1 -mxb 0 $masswin;
+
+	formLayout MR_ButtonForm;	
+
+	scrollLayout -cr 1 Scroll;
+
+	columnLayout -w 300 -columnWidth 300 -adjustableColumn false -cal "center" -rowSpacing 5 -cat "left" 10 MainColumn;
+
+
+// *** OPTIONS FRAME
+
+	frameLayout -label "Main Options" -collapse false -collapsable true -bs "etchedOut" ReplicationFrame;
+	columnLayout -w 300 -columnWidth 300 -adjustableColumn false -cal "center" -rowSpacing 2 -cat "left" 5 ReplicationColumn;
+
+	global string $MR_ReplType;
+	global string $MR_PlaceType;
+	global string $MR_ScaleType;
+	
+	separator -h 10 -st "none" ;
+
+	$MR_ReplType = `radioButtonGrp -numberOfRadioButtons 2 -label "Mode" -labelArray2 "Duplicate" "Instance" -cw 1 80  -cw 2 80 -sl 1` ;
+
+	intSliderGrp -cw 1 80 -cw 2 40 -l "Iterations" -field true -min 0 -max 500 -v 10 -annotation "Sets the number of duplicates/instances of the original object." iterations ;
+
+	separator -h 10 -st "none" ;
+
+	$MR_PlaceType = `radioButtonGrp -numberOfRadioButtons 2 -label "Placement" -labelArray2 "Area" "Offset" -cw 1 80  -cw 2 80 -sl 1 -annotation "Determines how the object-iterations are going to be scattered."` ;
+
+	intSliderGrp -cw 1 80 -cw 2 40 -l "Area Size" -field true -min 0 -max 500 -v 50 -annotation "The size of the scattering area." radius ;
+
+	separator -h 10 -st "none" ;
+
+	intSliderGrp -cw 1 80 -cw 2 40 -l "Offset X" -field true -min 0 -max 100 -v 1 MR_offsetX ;
+	intSliderGrp -cw 1 80 -cw 2 40 -l "Offset Y" -field true -min 0 -max 100 -v 1 MR_offsetY ;
+	intSliderGrp -cw 1 80 -cw 2 40 -l "Offset Z" -field true -min 0 -max 100 -v 1 MR_offsetZ ;
+
+	setParent MainColumn;
+
+// *** ROTATION FRAME
+
+	frameLayout -label "Rotation Options" -collapse false -collapsable true -bs "etchedOut" RotationFrame;
+	columnLayout -w 300 -columnWidth 300 -adjustableColumn false -cal "center" -rowSpacing 2 -cat "left" 5 RotationColumn;
+
+	separator -h 5 -st "none" ;
+
+	text -l "Random rotation boundary-values are in degrees.";
+
+	separator -h 5 -st "none" ;
+
+
+	intSliderGrp -cw 1 80 -cw 2 40 -l "X-Axis Min" -field true -min -360 -max 360 -v 0 MR_rotminx ;
+	intSliderGrp -cw 1 80 -cw 2 40 -l "X-Axis Max" -field true -min -360 -max 360 -v 0 MR_rotmaxx ;
+
+	intSliderGrp -cw 1 80 -cw 2 40 -l "Y-Axis Min" -field true -min -360 -max 360 -v 0 MR_rotminy ;
+	intSliderGrp -cw 1 80 -cw 2 40 -l "Y-Axis Max" -field true -min -360 -max 360 -v 0 MR_rotmaxy ;
+
+	intSliderGrp -cw 1 80 -cw 2 40 -l "Z-Axis Min" -field true -min -360 -max 360 -v 0 MR_rotminz ;
+	intSliderGrp -cw 1 80 -cw 2 40 -l "Z-Axis Max" -field true -min -360 -max 360 -v 0 MR_rotmaxz ;
+
+	setParent MainColumn;
+
+
+// *** SCALING FRAME
+
+	frameLayout -label "Scaling Options" -collapse false -collapsable true -bs "etchedOut" ScalingFrame;
+	columnLayout -w 300 -columnWidth 300 -adjustableColumn false -cal "center" -rowSpacing 2 -cat "left" 5 ScalingColumn;
+
+	separator -h 5 -st "none" ;
+
+	text -l "Scaling-factor values are multipliers of the original scale.";
+
+	separator -h 5 -st "none" ;
+
+	$MR_ScaleType = `radioButtonGrp -numberOfRadioButtons 2 -label "Scaling Mode" -labelArray2 "Uniform" "Non-Uniform" -cw 1 80  -cw 2 80 -sl 1` ;
+
+	separator -h 10 -st "none" ;
+
+	floatSliderGrp -cw 1 80 -cw 2 40 -l "Uniform Min" -field true -min 0 -max 10 -v 1 MR_unimin ;
+	floatSliderGrp -cw 1 80 -cw 2 40 -l "Uniform Max" -field true -min 0 -max 10 -v 1 MR_unimax ;
+
+	separator -h 10 -st "none" ;
+
+	floatSliderGrp -cw 1 80 -cw 2 40 -l "X-Scale Min" -field true -min 0 -max 10 -v 1 MR_scalminx ;
+	floatSliderGrp -cw 1 80 -cw 2 40 -l "X-Scale Max" -field true -min 0 -max 10 -v 1 MR_scalmaxx ;
+
+	floatSliderGrp -cw 1 80 -cw 2 40 -l "Y-Scale Min" -field true -min 0 -max 10 -v 1 MR_scalminy ;
+	floatSliderGrp -cw 1 80 -cw 2 40 -l "Y-Scale Max" -field true -min 0 -max 10 -v 1 MR_scalmaxy ;
+
+	floatSliderGrp -cw 1 80 -cw 2 40 -l "Z-Scale Min" -field true -min 0 -max 10 -v 1 MR_scalminz ;
+	floatSliderGrp -cw 1 80 -cw 2 40 -l "Z-Scale Max" -field true -min 0 -max 10 -v 1 MR_scalmaxz ;
+
+	separator -h 5 -st "none" ;
+
+	setParent MainColumn;
+	
+	setParent -top;	
+
+	$MR_specbutton= `button -h 30 -label "Specify Object" -command "MRspecifyObj()" -annotation "Use this button to specify the object to be duplicated/instanced."`;
+	$MR_replbutton= `button -h 30 -label "Perform Replication" -command "doTheReplicate()"`;
+	$MR_resetbutton= `button -h 30 -label "Reset Values" -command "massReplicate()"`;
+
+	formLayout -edit
+
+	-attachForm $MR_specbutton "left" 2
+	-attachForm $MR_specbutton "bottom" 2
+	-attachPosition $MR_specbutton "right" 0 25
+
+	-attachControl $MR_replbutton "left" 2 $MR_specbutton 
+	-attachForm $MR_replbutton "bottom" 2
+	-attachPosition $MR_replbutton "right" 0 75
+
+	-attachControl $MR_resetbutton "left" 2 $MR_replbutton
+	-attachForm $MR_resetbutton "bottom" 2
+	-attachForm $MR_resetbutton "right" 2
+
+	-attachForm Scroll "top" 1
+	-attachForm Scroll "left" 1
+	-attachForm Scroll "right" 1
+	-attachControl Scroll "bottom" 2 $MR_specbutton
+
+	MR_ButtonForm;
+	
+	showWindow;
+}
+
+// *** THE REPLICATION PROCESS
+
+global proc doTheReplicate()
+
+{
+	global string $MR_ReplType;
+	global string $MR_PlaceType;
+	global string $MR_ScaleType;
+
+	int $MR_RadioButton = `radioButtonGrp -q -sl $MR_ReplType`;	
+	int $MR_ScaleButton = `radioButtonGrp -q -sl $MR_ScaleType`;
+	int $MR_PlaceButton = `radioButtonGrp -q -sl $MR_PlaceType`;
+			
+	int $MR_itr = `intSliderGrp -q -v iterations`;	
+
+	int $MR_radius = `intSliderGrp -q -v radius`;	
+
+	int $MR_offsX = `intSliderGrp -q -v MR_offsetX`;	
+	int $MR_offsY = `intSliderGrp -q -v MR_offsetY`;	
+	int $MR_offsZ = `intSliderGrp -q -v MR_offsetZ`;	
+
+	int $MR_rotminx = `intSliderGrp -q -v MR_rotminx`;
+	int $MR_rotmaxx = `intSliderGrp -q -v MR_rotmaxx`;
+	int $MR_rotminy = `intSliderGrp -q -v MR_rotminy`;
+	int $MR_rotmaxy = `intSliderGrp -q -v MR_rotmaxy`;
+	int $MR_rotminz = `intSliderGrp -q -v MR_rotminz`;
+	int $MR_rotmaxz = `intSliderGrp -q -v MR_rotmaxz`;
+
+	float $MR_unimin = `floatSliderGrp -q -v MR_unimin`;
+	float $MR_unimax = `floatSliderGrp -q -v MR_unimax`;
+
+	float $MR_scalminx = `floatSliderGrp -q -v MR_scalminx`;
+	float $MR_scalmaxx = `floatSliderGrp -q -v MR_scalmaxx`;
+	float $MR_scalminy = `floatSliderGrp -q -v MR_scalminy`;
+	float $MR_scalmaxy = `floatSliderGrp -q -v MR_scalmaxy`;
+	float $MR_scalminz = `floatSliderGrp -q -v MR_scalminz`;
+	float $MR_scalmaxz = `floatSliderGrp -q -v MR_scalmaxz`;
+
+	global string $MR_TheObj[];
+
+		int $i;
+		int $MR_posX;
+		int $MR_posY;
+		int $MR_posZ;
+				
+		for ($i = 0; $i < $MR_itr; $i++)
+		{
+
+				float $MR_radiusX = rand (0-$MR_radius, $MR_radius);
+				float $MR_radiusZ = rand (0-$MR_radius, $MR_radius);
+			
+				int $MR_rotX = rand ($MR_rotminx, $MR_rotmaxx);				
+				int $MR_rotY = rand ($MR_rotminy, $MR_rotmaxy);				
+				int $MR_rotZ = rand ($MR_rotminz, $MR_rotmaxz);				
+
+				float $MR_uni = rand ($MR_unimin, $MR_unimax);
+
+				float $MR_scalX = rand ($MR_scalminx, $MR_scalmaxx);
+				float $MR_scalY = rand ($MR_scalminy, $MR_scalmaxy);
+				float $MR_scalZ = rand ($MR_scalminz, $MR_scalmaxz);
+
+				select $MR_TheObj[0];
+
+				if ($MR_RadioButton == 1)
+				{
+				duplicate -rr;
+				}
+				if ($MR_RadioButton == 2)
+				{
+				instance;
+				}	
+									if ($MR_PlaceButton == 1)
+									{
+									move -r -x $MR_radiusX -z $MR_radiusZ;
+									}
+									if ($MR_PlaceButton == 2)
+									{
+									move -ws $MR_posX $MR_posY $MR_posZ;						
+									}
+	
+				rotate -os $MR_rotX $MR_rotY $MR_rotZ;
+				$MR_posX=$MR_posX+$MR_offsX;
+				$MR_posY=$MR_posY+$MR_offsY;
+				$MR_posZ=$MR_posZ+$MR_offsZ;
+									if ($MR_ScaleButton == 1)
+									{
+									scale -r $MR_uni $MR_uni $MR_uni;
+									}
+									if ($MR_ScaleButton == 2)
+									{
+									scale -r $MR_scalX $MR_scalY $MR_scalZ;
+									}
+				}
+}
+
+// *** SPECIFY OBJECT
+
+global proc MRspecifyObj()
+
+{
+	string $MR_selection[] = `ls - sl`;
+
+	if ( size ($MR_selection [0]) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Specify an object to replicate." -b Continue;
+	return;
+	}
+
+	global string $MR_TheObj[];
+
+	$MR_TheObj = $MR_selection;
+	print (" SPECIFIED OBJECT:  " + $MR_TheObj[0] + "\n");
+}

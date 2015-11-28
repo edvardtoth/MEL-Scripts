@@ -1,0 +1,83 @@
+
+//==============================
+// groupN v1.0 (10/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact us at:
+//
+// http://www.edvardtoth.com
+//
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the groupN; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script creates a small pop-up window that contains grouping-preferences and a text-field that makes it possible
+// to properly name new groups in advance: this removes the extra step of having to rename them after the grouping is performed.
+// Provides an useful alternative to the default "group" (CTRL+G) command.
+// (Please also note that the NumPad "Enter" key has the same function as the "Group" button.)
+//
+
+global proc groupN()
+{
+
+global string $GN_window = "groupN";
+
+   if (`window -ex $GN_window`) 
+   {
+      deleteUI $GN_window;
+   }
+
+window -t "groupN V1.0" -w 185 -h 100 -rtf 1 -s 1 -mnb 1 -mxb 0 $GN_window;
+columnLayout -w 185 -adjustableColumn false -columnWidth 185 -columnAlign "center" -rowSpacing 3 -cat "both" 5 MainColumn;
+
+textField -w 185 -tx "groupname" -ec "groupN_perform()" GroupName;
+
+radioButtonGrp -numberOfRadioButtons 2 -cw3 70 55 55 -annotation "" -label "Group Under" -labelArray2 "Parent" "World" -sl 1 GroupUnder;
+radioButtonGrp -numberOfRadioButtons 2 -cw3 70 55 55 -annotation "" -label "Group Pivot" -labelArray2 "Center" "Origin" -sl 2 GroupPivot;
+
+button -w 185 -label "Group" -command "groupN_perform()";
+
+ showWindow ; 
+
+}
+
+global proc groupN_perform()
+{
+
+global string $GN_window; 
+string $GN_groupname = `textField -q -tx GroupName`;
+int $GN_groupunder = `radioButtonGrp -q -sl GroupUnder`;
+int $GN_grouppivot = `radioButtonGrp -q -sl GroupPivot`;
+
+string $GN_objects[] = `ls -sl`;
+string $GN_parents[] = `listRelatives -p $GN_objects[0]`;
+
+        switch ($GN_groupunder)
+		    {
+            case 1:
+               if ($GN_parents[0] != "")
+               {                
+               group -p $GN_parents[0] -n $GN_groupname;
+               }
+               else
+               {
+               group -w -n $GN_groupname;
+               }
+               break;
+               
+            case 2:
+            group -w -n $GN_groupname;
+            break;            
+            }
+        
+            if ($GN_grouppivot == 2)
+            {
+            xform -os -piv 0 0 0;
+            }
+            
+            deleteUI $GN_window;
+}

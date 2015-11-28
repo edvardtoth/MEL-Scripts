@@ -1,0 +1,52 @@
+
+//=================================
+// curveLength v1.0 (08/2004)
+// by Edvard Toth
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports, if you created an updated version, to check for updates or to make a donation please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==================================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the curveLength; command.
+//
+// COMPATIBILITY NOTE: Tested with Maya 4.0 - 4.5 - 5.0 - 6.0 - 7.0
+//
+// DESCRIPTION:
+// This tiny but very straightforward utility measures the length of a curve without all the hassle that comes with 
+// using Maya's implementation of the "Arc Length Tool".
+//
+
+global proc curveLength ()
+{
+    
+string $CL_curve[] = `ls -sl`;
+
+	if (size($CL_curve[0]) == 0)
+    {
+	confirmDialog -t "Oops..." -m "Please select a valid curve." -b Continue;
+	return;
+	}
+
+	string $CL_curvea[] = `ls -l $CL_curve[0]`;
+	string $CL_curveb[] = `listRelatives -f -ni -s $CL_curvea[0]`;
+	
+	if (nodeType($CL_curveb[0])!="nurbsCurve")
+    {
+	confirmDialog -t "Oops..." -m "Please select a valid curve." -b Continue;
+	return;
+	}    
+   
+        int $CL_spans = `getAttr ($CL_curve[0] + ".spans")`;
+    
+        string $CL_arclengthnode = `arcLengthDimension ($CL_curve[0] + ".u[" + $CL_spans + "]")`;
+        string $CL_nodeparent[] = `listRelatives -p $CL_arclengthnode`;
+    
+        float $CL_curvelength = `getAttr ($CL_arclengthnode + ".al")`;
+    
+        delete $CL_nodeparent;
+        
+        confirmDialog -t $CL_curve[0] -m ("curvelength:  " + $CL_curvelength) -b OK;    
+}

@@ -1,0 +1,69 @@
+
+//==============================
+// averageCurves v1.0 (07/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact us at:
+//
+// http://www.edvardtoth.com
+//
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the averageCurves; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script generates an averaged, intermediary curve between two selected curves. Particularly useful for terrain-modeling
+// or adding new cross-section curves for lofting surfaces.
+//
+
+global proc averageCurves()
+{
+	
+		string $AC_selA[] = `ls -sl`;
+		string $AC_selB[] = `ls -sl`;		
+
+		if (`size $AC_selA` < 2)
+		{
+		confirmDialog -t "Oops..." -m "Please select at least 2 curves." -b Continue;
+		return;
+		}
+
+		string $AC_curveCheckA[] = `listRelatives -f -ni -s $AC_selA[0]`;
+		string $AC_curveCheckB[] = `listRelatives -f -ni -s $AC_selA[1]`;
+
+		if (nodeType ($AC_curveCheckA[0]) != "nurbsCurve" || nodeType ($AC_curveCheckB[0]) != "nurbsCurve") 
+		{
+		confirmDialog -t "Oops..." -m "Please select only curves." -b Continue;
+		return;
+		}
+				
+		duplicate $AC_selA[0];		
+				
+		int $AC_spans = `getAttr ($AC_selA[0] + ".spans")`;		
+		int $AC_spans = $AC_spans + 2;
+		
+		for ($i=0; $i<=$AC_spans; $i++)
+		{ 
+			string $AC_curveA =	$AC_selA[0] + ".cv[" + $i + "]";
+			string $AC_curveB =	$AC_selA[1] + ".cv[" + $i + "]";
+			
+			select -r $AC_curveA ;
+			float $AC_CVA[] = `pointPosition -w`;
+			select -r $AC_curveB;
+			float $AC_CVB[] = `pointPosition -w`;
+			
+			float $AC_newCVX = ($AC_CVA[0] + $AC_CVB[0]) / 2;
+			float $AC_newCVY = ($AC_CVA[1] + $AC_CVB[1]) / 2;
+			float $AC_newCVZ = ($AC_CVA[2] + $AC_CVB[2]) / 2;
+			
+			string	$AC_selCV = $AC_selB[0] + ".cv[" + $i + "]";
+			select -r $AC_selCV;
+			
+			move -a -ws $AC_newCVX $AC_newCVY $AC_newCVZ;
+		}
+		select $AC_selB[0];
+		xform -cp;
+}

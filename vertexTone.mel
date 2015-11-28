@@ -1,0 +1,424 @@
+
+//==============================
+// vertexTone v2.1 (12/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the vertexTone; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+//
+// The script is a comprehensive global adjustment utility for vertex-color / vertex-alpha values.
+// It performs brightness, contrast, dodge/burn, saturation operations on the colors of selected vertices and features controls
+// to independently modify each RGB-channel.
+// 
+// It works on pre-defined vertex-selections, and the sampled color-information of the selections also serves as basis 
+// for any subsequent modification. This eliminates the "compounding" effect of the sliders: the original state can be 
+// restored by resetting the values. Modified colors can be re-sampled to establish a set of new base-values.
+//
+// It also retains vertex-selections to allow fine-tuning, it works across multiple objects and takes
+// advantage of the functionality offered by Maya's built-in color editor / color picker tool.
+//
+// NOTE: on some hardware-configurations it may be necessary to use Maya's native "Apply Color" function at least once 
+// prior to using the script in order to have Maya display the resulting vertex-color / vertex-alpha values properly.
+//
+
+
+global proc vertexTone()
+{
+	global string $VTwin = "vertexTone";
+
+  	if (`window -ex $VTwin`) 
+   	{
+      	deleteUI $VTwin;
+	}
+
+	window -wh 300 120 -t "vertexTone v2.1" -mnb 1 -mxb 0 -s 1 -rtf 1 $VTwin;
+
+	string $VT_form = `formLayout -numberOfDivisions 100 VertexToneForm`;
+
+	columnLayout -w 300 -columnWidth 300 -adjustableColumn 0 -cal "center" -rowSpacing 1 -cat "left" 5 MainColumn;
+
+	separator -h 2 -st "none";
+	
+	floatSliderGrp -l "Brightness" -field true  -cw3 70 35 200 -cc "doVertexTone 0" -pre 2 -v 0 -min -1 -max 1  VT_BrightnessValue;
+
+	floatSliderGrp -l "Contrast" -field true -cw3 70 35 200 -cc "doVertexTone 1" -pre 2 -v 0 -min -1 -max 1  VT_ContrastValue;
+				
+	floatSliderGrp -l "Dodge/Burn" -field true -cw3 70 35 200 -cc "doVertexTone 2" -pre 2 -v 0 -min -1 -max 1  VT_DodgeValue;
+		
+	separator -h 5 -st "none";	
+		
+	floatSliderGrp -l "Red" -field true -cw3 70 35 200 -cc "doVertexTone 3" -pre 2 -v 0 -min -1 -max 1  VT_RedValue;
+	
+	floatSliderGrp -l "Green" -field true -cw3 70 35 200 -cc "doVertexTone 4" -pre 2 -v 0 -min -1 -max 1  VT_GreenValue;	
+	
+	floatSliderGrp -l "Blue" -field true -cw3 70 35 200 -cc "doVertexTone 5" -pre 2 -v 0 -min -1 -max 1  VT_BlueValue;
+
+	separator -h 5 -st "none";	
+
+	floatSliderGrp -l "Saturation" -field true -cw3 70 35 200 -cc "doVertexTone 6" -pre 2 -v 0 -min -1 -max 1  VT_SatValue;
+		
+	floatSliderGrp -l "Alpha" -field true -cw3 70 35 200 -cc "doVertexTone 7" -pre 2 -v 1 -min 0 -max 1  VT_AlphaValue;
+
+
+setParent..;
+
+
+string $VT_definebutton = `button -w 260 -h 25 -label "DEFINE SELECTION / SAMPLE BASE COLORS" -command "defineSelection" -ann "Defines the selection-area and uses its colors as basis for all modifications."`;
+string $VT_colorbutton = `button -w 70 -h 20 -label "Color Picker" -command "colorEditor" -ann "Displays the built-in color-picker window."`;
+string $VT_applybutton = `button -w 100 -h 20 -label "Apply Picked Color" -command "doVertexToneApplyColor" -ann "Applies the color selected in the color-picker to currently selected vertices."`;
+string $VT_optionsbutton = `button -w 44 -h 20 -label "Options" -command "PolygonApplyColorOptions;" -ann "Displays Apply Color Options."`;
+string $VT_resetbutton = `button -w 40 -h 20 -label "Reset" -command "vertexTone;" -ann "Resets all sliders to their default values."`;
+
+
+formLayout -edit
+
+-attachControl $VT_definebutton "top" 5 MainColumn
+-attachForm $VT_definebutton "left" 5
+
+-attachControl $VT_colorbutton "top" 5 $VT_definebutton
+-attachForm $VT_colorbutton "left" 5
+
+-attachControl $VT_applybutton "top" 5 $VT_definebutton
+-attachControl $VT_applybutton "left" 2 $VT_colorbutton
+
+-attachControl $VT_optionsbutton "top" 5 $VT_definebutton
+-attachControl $VT_optionsbutton "left" 2 $VT_applybutton
+
+-attachControl $VT_resetbutton "top" 5 $VT_definebutton
+-attachControl $VT_resetbutton "left" 2 $VT_optionsbutton
+
+
+$VT_form;
+setParent ..;
+
+showWindow $VTwin;
+}
+
+
+global proc defineSelection ()
+{
+	PolySelectConvert 3;
+
+	global string $VT_VertexSel[];
+	$VT_VertexSel = `ls -sl -fl`;
+
+    if (size ($VT_VertexSel) == 0)
+    {
+    confirmDialog -t "Oops..." -m "Please make a selection first." -b Continue;
+    return;
+    }
+
+    global float $VT_Red[];
+	global float $VT_Green[];
+	global float $VT_Blue[];
+	global float $VT_Alpha[];
+
+    $VT_Red = `polyColorPerVertex -q -r`;
+    $VT_Green = `polyColorPerVertex -q -g`;
+    $VT_Blue = `polyColorPerVertex -q -b`;
+    $VT_Alpha = `polyColorPerVertex -q -a`;
+
+    print "New selection defined.";
+    vertexTone;
+}
+
+
+global proc doVertexTone (int $VT_cases)
+{
+	waitCursor -state on;
+
+    global string $VT_VertexSel[];
+
+    if (size ($VT_VertexSel) == 0)
+    {
+    warning "Please define a selection first.";       
+    }
+
+	select -r $VT_VertexSel;
+
+    global float $VT_Red[];
+	global float $VT_Green[];
+	global float $VT_Blue[];
+	global float $VT_Alpha[];
+
+    global float $VT_RedM[];
+	global float $VT_GreenM[];
+	global float $VT_BlueM[];
+	global float $VT_AlphaM[];
+
+    $VT_RedM = `polyColorPerVertex -q -r`;
+    $VT_GreenM = `polyColorPerVertex -q -g`;
+    $VT_BlueM = `polyColorPerVertex -q -b`;
+    $VT_AlphaM = `polyColorPerVertex -q -a`;
+
+	int $VT_VertexNum = size($VT_VertexSel);
+
+		 float $HSV[];
+		 float $RGB[];
+
+	switch ($VT_cases)
+
+	{
+
+				case 0:		
+					//BRIGHTNESS
+	
+					float $VT_Modifier = `floatSliderGrp -q -v VT_BrightnessValue`;
+				
+					for ($i = 0; $i < ($VT_VertexNum); $i++)
+					{
+						
+					$VT_RedM[$i] = ($VT_Red[$i] + $VT_Modifier);
+					$VT_GreenM[$i] = ($VT_Green[$i] + $VT_Modifier);
+					$VT_BlueM[$i] = ($VT_Blue[$i] + $VT_Modifier);
+						 
+	
+					if ($VT_RedM[$i] > 1.0)
+						{$VT_RedM[$i] = 1;}
+					if ($VT_GreenM[$i] > 1.0)
+						{$VT_GreenM[$i] = 1;}
+					if ($VT_BlueM[$i] > 1.0)
+						{$VT_BlueM[$i] = 1;}
+					
+					if ($VT_RedM[$i] < 0)
+						{$VT_RedM[$i] = 0;}
+					if ($VT_GreenM[$i] < 0)
+						{$VT_GreenM[$i] = 0;}
+					if ($VT_BlueM[$i] < 0)
+						{$VT_BlueM[$i] = 0;}
+				
+						}
+				
+					break;
+	
+				case 1:
+	
+					// CONTRAST 
+
+					float $VT_Modifier = `floatSliderGrp -q -v VT_ContrastValue`;
+					$VT_Modifier = ($VT_Modifier + 1);
+					
+					
+					for ($i = 0; $i < ($VT_VertexNum); $i++)
+					{
+					
+					if ($VT_Modifier > 1)
+					{
+						$VT_RedM[$i] = `pow $VT_Red[$i] $VT_Modifier`;
+						$VT_GreenM[$i] = `pow $VT_Green[$i] $VT_Modifier`;
+						$VT_BlueM[$i] = `pow $VT_Blue[$i] $VT_Modifier`;
+
+
+						if ($VT_RedM[$i] > 1.0)
+							{$VT_RedM[$i] = 1;}
+						if ($VT_GreenM[$i] > 1.0)
+							{$VT_GreenM[$i] = 1;}
+						if ($VT_BlueM[$i] > 1.0)
+							{$VT_BlueM[$i] = 1;}
+
+						if ($VT_RedM[$i] < 0)
+							{$VT_RedM[$i] = 0;}
+						if ($VT_GreenM[$i] < 0)
+							{$VT_GreenM[$i] = 0;}
+						if ($VT_BlueM[$i] < 0)
+							{$VT_BlueM[$i] = 0;}
+					}
+				
+					
+					
+					if ($VT_Modifier < 1)
+					{
+						float $Rr = (0.5 - $VT_Red[$i]);
+						$VT_RedM[$i] = ($VT_Red[$i]+($Rr *(1-$VT_Modifier)));
+						float $Gr = (0.5 - $VT_Green[$i]);
+						$VT_GreenM[$i] = ($VT_Green[$i]+($Gr *(1-$VT_Modifier)));
+						float $Br = (0.5 - $VT_Blue[$i]);
+						$VT_BlueM[$i] = ($VT_Blue[$i]+($Br *(1-$VT_Modifier)));
+						
+					}
+				
+					}
+				break;
+					
+					
+				case 2:
+					//DODGE
+
+					float $VT_Modifier = `floatSliderGrp -q -v VT_DodgeValue`;
+					$VT_Modifier = ($VT_Modifier + 1);
+
+					for ($i = 0; $i < ($VT_VertexNum); $i++)
+					{
+
+					$VT_RedM[$i] = ($VT_Red[$i] * $VT_Modifier);
+					$VT_GreenM[$i] = ($VT_Green[$i] * $VT_Modifier);
+					$VT_BlueM[$i] = ($VT_Blue[$i] * $VT_Modifier);
+
+
+					if ($VT_RedM[$i] > 1.0)
+						{$VT_RedM[$i] = 1;}
+					if ($VT_GreenM[$i] > 1.0)
+						{$VT_GreenM[$i] = 1;}
+					if ($VT_BlueM[$i] > 1.0)
+						{$VT_BlueM[$i] = 1;}
+						
+					if ($VT_RedM[$i] < 0)
+						{$VT_RedM[$i] = 0;}
+					if ($VT_GreenM[$i] < 0)
+						{$VT_GreenM[$i] = 0;}
+					if ($VT_BlueM[$i] < 0)
+						{$VT_BlueM[$i] = 0;}
+
+					}											
+				break;
+				
+				case 3:
+					//RED
+					$VT_Modifier = `floatSliderGrp -q -v VT_RedValue`;
+			
+					for ($i = 0; $i < ($VT_VertexNum); $i++)
+					{
+					$VT_RedM[$i] = ($VT_Red[$i] + $VT_Modifier); 
+	
+					if ($VT_RedM[$i] < 0)
+						{$VT_RedM[$i] = 0;}
+					if ($VT_RedM[$i] > 1)
+						{$VT_RedM[$i] = 1;}
+					}	
+				break;
+				
+				case 4:
+					//GREEN
+						
+					$VT_Modifier = `floatSliderGrp -q -v VT_GreenValue`;
+			
+					for ($i = 0; $i < ($VT_VertexNum); $i++)
+					{
+					$VT_GreenM[$i] = ($VT_Green[$i] + $VT_Modifier);
+	
+					if ($VT_GreenM[$i] < 0)
+						{$VT_GreenM[$i] = 0;}
+					if ($VT_GreenM[$i] > 1)
+						{$VT_GreenM[$i] = 1;}
+					}
+				break;
+				
+				case 5:
+	
+					//BLUE
+
+					$VT_Modifier = `floatSliderGrp -q -v VT_BlueValue`;
+			
+					for ($i = 0; $i < ($VT_VertexNum); $i++)
+					{
+					$VT_BlueM[$i] = ($VT_Blue[$i] + $VT_Modifier);
+				
+					if ($VT_BlueM[$i] < 0)
+						{$VT_BlueM[$i] = 0;}
+					if ($VT_BlueM[$i] > 1)
+						{$VT_BlueM[$i] = 1;}
+					}			
+				break;
+				
+				case 6:
+									
+					//SATURATION
+											
+					shadingNode -asUtility rgbToHsv -name VT_rgb2hsv;
+					shadingNode -asUtility hsvToRgb -name VT_hsv2rgb;
+
+														
+					float $VT_Modifier = `floatSliderGrp -q -v VT_SatValue`;
+				
+					for ($i = 0; $i < ($VT_VertexNum); $i++)
+					{
+					
+					setAttr "VT_rgb2hsv.inRgb" -type double3 $VT_Red[$i] $VT_Green[$i] $VT_Blue[$i];
+					$HSV = `getAttr "VT_rgb2hsv.outHsv"`; 
+												
+					$HSV[1] = $HSV[1] + $VT_Modifier;		
+							
+					setAttr "VT_hsv2rgb.inHsv" -type double3 $HSV[0] $HSV[1] $HSV[2];
+					$RGB = `getAttr "VT_hsv2rgb.outRgb"`; 
+													
+					$VT_RedM[$i] = $RGB[0];
+					$VT_GreenM[$i] = $RGB[1];
+					$VT_BlueM[$i] = $RGB[2];
+												
+					if ($VT_RedM[$i] > 1.0)
+					{$VT_RedM[$i] = 1;}
+					if ($VT_GreenM[$i] > 1.0)
+					{$VT_GreenM[$i] = 1;}
+					if ($VT_BlueM[$i] > 1.0)
+					{$VT_BlueM[$i] = 1;}
+															
+					if ($VT_RedM[$i] < 0)
+					{$VT_RedM[$i] = 0;}
+					if ($VT_GreenM[$i] < 0)
+					{$VT_GreenM[$i] = 0;}
+					if ($VT_BlueM[$i] < 0)
+					{$VT_BlueM[$i] = 0;}
+										
+					}
+		
+					delete VT_rgb2hsv;
+					delete VT_hsv2rgb;
+		
+				break;
+				
+				case 7:
+				
+					//ALPHA
+					float $VT_Modifier = `floatSliderGrp -q -v VT_AlphaValue`;
+					
+					for ($i = 0; $i < ($VT_VertexNum); $i++)
+					{
+					$VT_AlphaM[$i] = $VT_Modifier; 
+					}
+					
+				break;			
+				
+				}	
+				
+	
+	// APPLY SETTINGS TO THE VERTEX-COLORS 
+
+
+	for ($i = 0; $i < ($VT_VertexNum); $i++)
+		{
+			select $VT_VertexSel[$i];
+			polyColorPerVertex -r $VT_RedM[$i] -g $VT_GreenM[$i] -b $VT_BlueM[$i] -a $VT_AlphaM[$i];
+		}
+
+	select -r $VT_VertexSel;
+	clear $VT_RedM;
+	clear $VT_GreenM;
+	clear $VT_BlueM;
+	
+	waitCursor -state off;
+}
+
+
+	// APPLY COLOR FROM THE COLOR EDITOR
+
+global proc doVertexToneApplyColor()
+{
+	float $VT_EdColors[] = `colorEditor -q -rgb`;
+	if (`colorEditor -query -result` == 1)
+		{
+		polyColorPerVertex -r $VT_EdColors[0] -g $VT_EdColors[1] -b $VT_EdColors[2];
+		return;
+		}
+	confirmDialog -t "Oops..." -m "Please pick a color first." -b Continue;
+}
+

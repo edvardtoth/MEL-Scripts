@@ -1,0 +1,105 @@
+
+//=============================
+// massPointLights v1.0 (01/2004)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports or if you created an updated version, please contact me at:
+//
+// http://www.edvardtoth.com
+//=============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the massPointLights; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script creates a customizable pointLight at the origins of any number of selected objects, and each pointLight is 
+// generated with an adjustable intensity-curve to control its falloff (use the Attribute-Editor to modify falloff-settings
+// after the lights are created).
+// The script offers a workaround to the problem of losing the intensity-curve when duplicating/instancing lights of this type,
+// and provides a fast and effective method of placing a large number of these lights at specific positions within a 
+// scene (especially when used together with locators to define the placement).
+
+
+global proc massPointLights ()
+{
+
+  if (`window -exists PL_win`)
+    deleteUI PL_win;
+  
+  window -widthHeight 300 120 -rtf 1 -s 1 -mnb 1 -mxb 0 -t "massPointLights v1.0" PL_win;
+
+  columnLayout -w 300 -columnWidth 300 -adjustableColumn false -cal "center" -rowSpacing 1 -cat "left" 1 PL_column;
+    
+        separator -w 200 -height 5 -style "none";
+       
+        colorSliderGrp -cw 1 80 -cw 2 45 -cw 3 100 -l "Light Color" -rgb 1.0 1.0 1.0 PL_color;
+
+        separator -w 200 -height 5 -style "none";
+
+        floatSliderGrp -field 1 -v 1 -cw 1 80 -cw 2 45 -cw 3 100 -ann "Defines the intensity of the lights at the source." -l "Start Intensity" -min 0 -max 50 -pre 2 PL_startint;      
+        floatSliderGrp -field 1 -v 0 -cw 1 80 -cw 2 45 -cw 3 100 -ann "Defines the intensity to which the lights ramp up/down to." -l "End Intensity" -min 0 -max 50 -pre 2 PL_endint;
+        floatSliderGrp -field 1 -v 10 -cw 1 80 -cw 2 45 -cw 3 100 -ann "Sets the distance in which the start intensity changes into the end intensity." -l "Falloff Range" -min 0 -max 500 -pre 2 PL_range;  
+
+        separator -w 200 -height 5 -style "none";
+
+        checkBoxGrp -ncb 1 -v1 0 -cw2 135 30 -ann "Check to automatically delete the selected objects after assigning pointlights to their position." -l "Delete Selected Objects" PL_delete; 
+
+        separator -w 200 -height 5 -style "none";
+
+    	button -l "Assign PointLights To Selected Objects" -w 300 -h 25 -c "PL_makeLights" PL_button;
+    
+  showWindow;  
+}
+
+
+global proc PL_makeLights ()
+{
+    
+    string $PL_selected[] = `ls -sl`;
+    int $PL_selsize = `size ($PL_selected)`;
+    
+    if ($PL_selsize == 0)
+		{
+		confirmDialog -t "Oops..." -m "Please make a selection first." -b Continue;
+		return;
+		} 
+       
+    float $PL_color[] = `colorSliderGrp -q -rgb PL_color`;
+    float $PL_startint = `floatSliderGrp -q -value PL_startint`;
+    float $PL_endint = `floatSliderGrp -q -value PL_endint`;
+    float $PL_range = `floatSliderGrp -q -value PL_range`;
+
+    string $PL_delete = `checkBoxGrp -q -v1 PL_delete`;
+
+    string $PL_pointlights[];
+
+    select -cl;
+
+    for ($i = 0; $i < $PL_selsize ; $i++ )
+    {
+   
+    float $PL_selpos[] = `xform -ws -q -t $PL_selected[$i]`;
+      
+    $PL_pointlights[$i] = `pointLight -rgb $PL_color[0] $PL_color[1] $PL_color[2]`;
+
+    setKeyframe -at "intensity" -itt "linear" -ott "linear" -v $PL_startint -f 0;
+    setKeyframe -at "intensity" -itt "linear" -ott "linear" -v $PL_endint -f $PL_range;
+
+    $PL_lightinfo = `shadingNode -asTexture -asUtility lightInfo`;
+
+    connectAttr -f ($PL_pointlights[$i] + ".worldMatrix[0]")  ($PL_lightinfo + ".worldMatrix");
+    connectAttr -f ($PL_lightinfo + ".sampleDistance") ($PL_pointlights[$i] + "_intensity.input");
+
+    select -r $PL_pointlights[$i];
+    move -a -ws $PL_selpos[0] $PL_selpos[1] $PL_selpos[2];
+    }
+
+    if ($PL_delete == 1)
+	{
+	    select -r $PL_selected;
+    	delete $PL_selected;
+	}
+    select -r $PL_pointlights;
+}

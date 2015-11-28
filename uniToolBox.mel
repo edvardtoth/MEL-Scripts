@@ -1,0 +1,1026 @@
+//=====================================
+// uniToolBox v2.0 (01/2006)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests 
+// or bug-reports please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//=====================================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the "uniToolBox X;" command, where "X" represents
+// an integer value between 0 and 3, which determines how the script's user interface is rendered. The possible values are:
+//
+// uniToolBox 0; - the script UI is opened in its own window
+// uniToolBox 1; - the script UI is docked at the top of the Channels/Layers panel
+// uniToolBox 2; - the script UI is docked at the middle of the Channels/Layers panel
+// uniToolBox 3; - the script UI is docked at the bottom of the Channels/Layers panel
+//
+// COMPATIBILITY NOTE: Tested with Maya 4 - 5 - 6 - 6.5 - 7
+//
+// DESCRIPTION:
+// The script creates a Swiss Army-knife style unified interface featuring contols grouped in collapsible frames 
+// for a number of functions and operations. It includes a comprehensive collection of display-property and shading controls, 
+// selection conversion, UV-mapping, prelighting and layer commands. 
+// The status of the collapsible frames is always remembered, even between Maya-restarts.
+//
+// Please note that right-clicking on darker gray buttons will bring up additional sub-commands and/or options. 
+// (Important: the buttons will always execute their assigned command using the most recent settings for that particular command. 
+// You can access the command's options-window and modify its settings by right-clicking on the button or by locating its option-box 
+// within the standard Maya-interface.
+//
+// THE USER TAB: The buttons in this tab are configurable by the user through a configuration file called "uniToolBoxUser.txt" which 
+// should be placed in the same directory (parsed by Maya at startup) where the uniToolBox.mel script itself is located.
+// The file should contain button-listings in the following format:
+//
+// buttonname1,"buttoncommand1"
+// buttonname2,"buttoncommand2"
+// buttonname3,"buttoncommand3"
+// etc.
+//
+// Watch for unwanted extra spaces or line breaks when creating the configuration file, as they can generate 
+// additional non-functioning buttons.
+//
+// And finally, after executing the script the subroutines can be accessed individually, or even hotkeyed:
+//
+// UTB_toggleWOS;
+// UTB_toggleXRay;
+// UTB_toggleLocators;
+// UTB_toggleVIS;
+// UTB_triangleCount;
+// UTB_reloadTextures;
+// UTB_centerToView;
+// UTB_selectedLayerOnly;
+// UTB_dispLayers 0 or 1;
+// UTB_toggleLayers;
+// UTB_addToLayer;
+// UTB_selectLayerObjects;
+// UTB_disconnectLightLinker;
+
+
+global proc uniToolBox (int $UTB_switch)
+{
+
+	if ($UTB_switch < 0 || $UTB_switch > 3)
+	{
+	confirmDialog -t "Oops..." -m "Please use one of the following startup-attributes:\nuniToolBox 0; - the script UI is opened in its own window.\nuniToolBox 1; - the script UI is docked at the top of the Channels/Layers panel.\nuniToolBox 2; - the script UI is docked at the middle of the Channels/Layers panel.\nuniToolBox 3; - the script UI is docked at the bottom of the Channels/Layers panel."
+    -b Continue;
+	return;
+	}
+
+    int $UTB_switchdisplay = `optionVar -q "UTB_switchdisplay"`;
+    int $UTB_switchshading = `optionVar -q "UTB_switchshading"`;
+    int $UTB_switchnormals = `optionVar -q "UTB_switchnormals"`;
+    int $UTB_switchedges = `optionVar -q "UTB_switchedges"`;
+    int $UTB_switchtriangles = `optionVar -q "UTB_switchtriangles"`;
+    int $UTB_switchuv = `optionVar -q "UTB_switchuv"`;
+    int $UTB_switchprelight = `optionVar -q "UTB_switchprelight"`;
+    int $UTB_switchselection = `optionVar -q "UTB_switchselection"`;
+    int $UTB_switchlayers = `optionVar -q "UTB_switchlayers"`;
+    int $UTB_switchuser = `optionVar -q "UTB_switchuser"`;
+
+
+       global string $UTB_win = "uniToolBox";
+       global string $UTB_aboutwin = "UTB_About";
+
+	   if (`window -ex $UTB_win`) 
+	   {
+	      deleteUI $UTB_win;
+	   }
+	   if (`window -ex $UTB_aboutwin`) 
+	   {
+	      deleteUI $UTB_aboutwin;
+	   }
+
+	   if (`layout -ex UniForm`) 
+	   {
+	    deleteUI UniForm;
+	    paneLayout -e -configuration horizontal2 ChannelsLayersPaneLayout;
+	        
+        setParent ChannelsLayersPaneLayout;
+      
+        global string $gChannelBoxForm;
+        global string $gLayerEditorForm;
+      
+        setParent ChannelsLayersPaneLayout;
+      
+        columnLayout $gChannelBoxForm;
+        columnLayout $gLayerEditorForm;
+      
+        paneLayout -e -setPane $gChannelBoxForm 1 ChannelsLayersPaneLayout;
+	    paneLayout -e -setPane $gLayerEditorForm 2 ChannelsLayersPaneLayout;
+	   }
+	
+	
+        if (!`isUIComponentVisible("Channel Box / Layer Editor")`) 
+        {
+        toggleUIComponentVisibility("Channel Box / Layer Editor");
+        }
+
+
+	switch ($UTB_switch)
+	{
+
+	case 0:
+		window -t "uniToolBox V2.0" -rtf 1 -w 100 -h 100 -s 1 -mnb 1 -mxb 0 $UTB_win;
+		break;
+	case 1:
+	case 2:
+	case 3:
+		setParent ChannelsLayersPaneLayout;
+		break;
+	}	
+
+
+	formLayout UniForm;	
+	scrollLayout -hst 8 -vst 8 -cr 1 Scroll;
+
+columnLayout -w 100 -columnWidth 100 -rowSpacing 1 -columnAlign "center" -co "both" 2 MainColumn;
+
+
+/// DISPLAY
+
+frameLayout -label " Display" 
+            -bv 1 -bs "etchedOut" 
+            -bgc 0.8 0.6 0.6 -mw 4 -mh 4 
+            -collapse $UTB_switchdisplay -collapsable true 
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            DisplayFrame;
+	        columnLayout -adjustableColumn false -rowSpacing 0 DisplayColumn;
+
+button -w 100 -h 18 -label "CenterToView" -command "UTB_centerToView()";
+
+separator -h 4 -w 100 -bgc 0.8 0.6 0.6 -st "none";
+
+button -w 100 -h 18 -label "Grid" -bgc 0.74 0.74 0.74 -command "ToggleGrid";
+popupMenu;
+
+menuItem -label "Grid Options" -c "performGridOptions 1";
+
+button -w 100 -h 18 -label "WireOnShaded" -command "UTB_toggleWOS()";
+button -w 100 -h 18 -label "XRay" -command "UTB_toggleXRay()";
+button -w 100 -h 18 -label "Locators" -command "UTB_toggleLocators()";
+
+separator -h 4 -w 100 -bgc 0.8 0.6 0.6 -st "none";
+
+text -w 100 -label "BackFaceCulling" -bgc 0.8 0.6 0.6;
+popupMenu;
+menuItem -label "BackFaceCulling On" -c "polyOptions -fb";
+menuItem -label "BackFaceCulling Off" -c "polyOptions -bc";
+
+text -w 100 -label "MiscDisplayItems" -bgc 0.8 0.6 0.6;
+popupMenu;
+menuItem -label "Vertices" -command "polyOptions -r -dv false";
+menuItem -label "NurbsCVs" -command "ToggleCVs";
+menuItem -label "TextureBorders" -command "polyOptions -r -dmb false";
+menuItem -label "NonPlanarFaces" -command "polyOptions -r -dw false";
+menuItem -label "FaceCenters" -command "TogglePolygonFaceCenters;";
+menuItem -label "LatticePoints" -command "ToggleLatticePoints;";
+
+text -w 100 -label "Show/Hide" -bgc 0.8 0.6 0.6;
+popupMenu;
+menuItem -label "ToggleVisibility" -command "UTB_toggleVIS()";
+menuItem -label "ShowSelection" -command "ShowSelectedObjects";
+menuItem -label "HideSelection" -command "HideSelectedObjects";
+menuItem -label "ShowLastHidden" -command "ShowLastHidden";
+menuItem -label "HideUnselected" -command "HideUnselectedObjects";
+
+
+setParent MainColumn;
+
+
+/// SHADING
+
+frameLayout -label " Shading" 
+            -bv 1 -bs "etchedOut" 
+            -bgc 0.8 0.6 0.6 -mw 4 -mh 4 
+            -collapse $UTB_switchshading -collapsable true
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            ShadingFrame;
+	        columnLayout -adjustableColumn false -rowSpacing 0 ShadingColumn;
+
+button -w 100 -h 18 -label "Wireframe" -command "UTB_shading 0";
+button -w 100 -h 18 -label "Smooth" -command "UTB_shading 1";
+button -w 100 -h 18 -label "Textures" -command "UTB_shading 2";
+button -w 100 -h 18 -label "VertexColors" -command "UTB_shading 3";
+button -w 100 -h 18 -label "VtxCol/Txt" -command "UTB_shading 4";
+button -w 100 -h 18 -label "VtxCol/Txt/Lights" -command "UTB_shading 5";
+
+separator -h 4 -w 100 -bgc 0.8 0.6 0.6 -st "none";
+
+button -w 100 -h 18 -label "NoLights" -command "UTB_shading 6";
+button -w 100 -h 18 -label "DefaultLights" -command "UTB_shading 7";
+button -w 100 -h 18 -label "ActiveLights" -command "UTB_shading 8";
+button -w 100 -h 18 -label "AllLights" -command "UTB_shading 9";
+
+setParent MainColumn;
+
+
+/// NORMALS
+
+frameLayout -label " Normals" 
+            -bv 1 -bs "etchedOut" 
+            -bgc 0.6 0.7 0.8 -mw 4 -mh 4 
+            -collapse $UTB_switchnormals -collapsable true 
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            NormalFrame;
+		    columnLayout -adjustableColumn false -rowSpacing 0 NormalColumn;
+
+button -w 100 -h 18 -label "FaceNormals" -bgc 0.74 0.74 0.74 -command "polyOptions -r -dn false -f";
+popupMenu;
+menuItem -label "Short Normals" -c "setNormalsSize .16";
+menuItem -label "Medium Normals" -c "setNormalsSize .4";
+menuItem -label "Long Normals" -c "setNormalsSize 1";
+
+button -w 100 -h 18 -label "VertexNormals" -bgc 0.74 0.74 0.74 -command "polyOptions -r -dn false -pt";
+popupMenu;
+
+menuItem -label "Short Normals" -c "setNormalsSize .16";
+menuItem -label "Medium Normals" -c "setNormalsSize .4";
+menuItem -label "Long Normals" -c "setNormalsSize 1";
+
+button -w 100 -h 18 -label "ReverseNormals" -command "polyNormal -normalMode 3 -ch 1";
+button -w 100 -h 18 -label "AverageNormals" -bgc 0.74 0.74 0.74 -command "performPolyAverageNormal 0";
+popupMenu;
+
+menuItem -label "AverageNormals Options" -command "performPolyAverageNormal 1";
+
+button -w 100 -h 18 -label "UnlockNormals" -command "polyNormalPerVertex -ufn true";
+
+setParent MainColumn;
+
+/// EDGES
+
+frameLayout -label " Edges" 
+            -bv 1 -bs "etchedOut"
+            -bgc 0.6 0.7 0.8 -mw 4 -mh 4 
+            -collapse $UTB_switchedges -collapsable true 
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            EdgeFrame;
+		    columnLayout -adjustableColumn false -rowSpacing 0 EdgeColumn;
+
+button -w 100 -h 18 -label "MakeHardEdges" -command "polySoftEdge -a 0 -ch 1";
+button -w 100 -h 18 -label "MakeSoftEdges" -command "polySoftEdge -a 180 -ch 1";
+
+separator -h 4 -w 100 -st "none" -bgc 0.6 0.7 0.8;
+
+text -w 100 -label "EdgeDisplay" -bgc 0.6 0.7 0.8;
+popupMenu;
+menuItem -label "DisplayAllEdges" -command "polyOptions -ae";
+menuItem -label "DisplayHardEdges" -command "polyOptions -he";
+menuItem -label "DisplaySoftEdges" -command "polyOptions -se";
+
+setParent MainColumn;
+
+
+/// TRIANGLES
+
+frameLayout -label " Triangles" 
+            -bv 1 -bs "etchedOut" 
+            -bgc 0.6 0.7 0.8 -mw 4 -mh 4
+            -collapse $UTB_switchtriangles -collapsable true 
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            TriangleFrame;
+		    columnLayout -adjustableColumn false -rowSpacing 0 TriangleColumn;
+
+button -w 100 -h 18 -label "DisplayTriangles" -command "polyOptions -r -dt false";
+button -w 100 -h 18 -label "Triangulate" -command "polyTriangulate -ch 1";
+button -w 100 -h 18 -label "Quadrangulate" -bgc 0.74 0.74 0.74 -command "performPolyQuadrangulate 0";
+popupMenu;
+menuItem -label "Quadrangulate Options" -command "performPolyQuadrangulate 1";
+
+button -w 100 -h 18 -label "FlipTriangleEdge" -command "polyFlipEdge";
+
+separator -h 4 -w 100 -bgc 0.6 0.7 0.8 -st "none";
+
+button -w 100 -h 18 -label "TriangleCount" -command "UTB_triangleCount()";
+
+setParent MainColumn;
+
+/// UV MAPPING
+
+frameLayout -label " UV Mapping" 
+            -bv 1 -bs "etchedOut" 
+            -bgc 0.7 0.6 0.5 -mw 4 -mh 4
+            -collapse $UTB_switchuv -collapsable true 
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            UVFrame;
+		    columnLayout -adjustableColumn false -rowSpacing 0 UVColumn;
+
+button -w 100 -h 18 -label "PlanarMapping"  -bgc 0.74 0.74 0.74 -command "UTB_projPlanar";
+popupMenu;
+menuItem -label "PlanarMapping Options" -command "UTB_projPlanarO";
+
+button -w 100 -h 18 -label "CylindricalMapping"  -bgc 0.74 0.74 0.74 -command "UTB_projCylindrical";
+popupMenu;
+menuItem -label "CylindricalMapping Options" -command "UTB_projCylindricalO";
+
+button -w 100 -h 18 -label "AutomaticMapping"  -bgc 0.74 0.74 0.74 -command "performPolyAutoProj 0";
+popupMenu;
+menuItem -label "AutomaticMapping Options" -command "performPolyAutoProj 1";
+
+separator -h 4 -w 100  -bgc 0.7 0.6 0.5 -st "none";
+
+button -w 100 -h 18 -label "LayoutUVs"  -bgc 0.74 0.74 0.74 -command "performPolyLayoutUV 0;";
+popupMenu;
+menuItem -label "LayoutUVs Options" -command "performPolyLayoutUV 1;";
+
+button -w 100 -h 18 -label "RelaxUVs"  -bgc 0.74 0.74 0.74 -command "performPolyUntangleUV relax 0";
+popupMenu;
+menuItem -label "RelaxUVs Options" -command "performPolyUntangleUV relax 1";
+
+button -w 100 -h 18 -label "NormalizeUVs"  -bgc 0.74 0.74 0.74 -command "performPolyForceUV normalize 0";
+popupMenu;
+menuItem -label "NormalizeUVs Options" -command "performPolyForceUV normalize 1";
+
+button -w 100 -h 18 -label "UnitizeUVs" -command "polyForceUV -unitize";
+
+separator -h 4 -w 100  -bgc 0.7 0.6 0.5 -st "none";
+
+button -w 100 -h 18 -label "FlipUVs"  -bgc 0.74 0.74 0.74 -command "performPolyForceUV flip 0";
+popupMenu;
+menuItem -label "FlipUVs Options" -command "performPolyForceUV flip 1";
+
+button -w 100 -h 18 -label "RotateUVs"  -bgc 0.74 0.74 0.74 -command "performPolyRotateUVs 0";
+popupMenu;
+menuItem -label "RotateUVs Options" -command "performPolyRotateUVs 1";
+
+button -w 100 -h 18 -label "CutUVs" -command "polyPerformAction polyMapCut e 0";
+
+button -w 100 -h 18 -label "MergeUVs"  -bgc 0.74 0.74 0.74 -command "performPolyMergeUV 0";
+popupMenu;
+menuItem -label "MergeUVs Options" -command "performPolyMergeUV 1";
+
+button -w 100 -h 18 -label "MoveAndSewUVs"  -bgc 0.74 0.74 0.74 -command "performPolyMapSewMove 0";
+popupMenu;
+menuItem -label "MoveAndSewUVs Options" -command "performPolyMapSewMove 1";
+
+separator -h 4 -w 100  -bgc 0.7 0.6 0.5 -st "none";
+
+button -w 100 -h 18 -label "ReloadTextures" -command "UTB_reloadTextures";
+
+setParent MainColumn;
+
+/// PRELIGHTING
+
+frameLayout -label " Prelighting" 
+            -bv 1 -bs "etchedOut" 
+            -bgc 0.7 0.6 0.5 -mw 4 -mh 4
+            -collapse $UTB_switchprelight -collapsable true 
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            PrelightFrame;
+		    columnLayout -adjustableColumn false -rowSpacing 0 PrelightColumn;
+
+button -w 100 -h 18 -label "Prelight"  -bgc 0.74 0.74 0.74 -command "performPrelight 0";
+popupMenu;
+menuItem -label "Prelight Options" -command "performPrelight 1";
+
+button -w 100 -h 18 -label "ApplyColor"  -bgc 0.74 0.74 0.74 -command "performApplyColor 0";
+popupMenu;
+menuItem -label "ApplyColor Options" -command "performApplyColor 1";
+
+button -w 100 -h 18 -label "BreakLightLinks" -command "BreakLightLinks";
+
+button -w 100 -h 18 -label "MakeLightLinks" -command "MakeLightLinks";
+
+button -w 100 -h 18 -label "Disconnect Linker" -command "UTB_disconnectLightLinker";
+
+setParent MainColumn;
+
+/// SELECTION
+
+frameLayout -label " Selection" 
+            -bv 1 -bs "etchedOut" 
+            -bgc 0.5 0.7 0.6 -mw 4 -mh 4
+            -collapse $UTB_switchselection -collapsable true 
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            SelectionFrame;
+		    columnLayout -adjustableColumn false -rowSpacing 0 SelectionColumn;
+
+button -w 100 -h 18 -label "Extract"  -bgc 0.74 0.74 0.74 -command "ExtractFace";
+popupMenu;
+menuItem -label "Extract Options" -command "ExtractFaceOptions";
+menuItem -label "Separate" -command "SeparatePolygon";
+
+button -w 100 -h 18 -label "SelectContEdges"  -bgc 0.74 0.74 0.74 -command "performSelContiguousEdges 0";
+popupMenu;
+menuItem -label "SelectContEdges Options" -command "performSelContiguousEdges 1";
+
+separator -h 4 -w 100 -bgc 0.5 0.7 0.6 -st "none";
+
+text -w 100 -label "ConvertSelectionTo" -bgc 0.5 0.7 0.6;
+popupMenu;
+
+menuItem -label "Faces" -command "PolySelectConvert 1";
+menuItem -label "Edges" -command "PolySelectConvert 2";
+menuItem -label "Vertices" -command "PolySelectConvert 3";
+menuItem -label "UVs" -command "PolySelectConvert 4";
+menuItem -label "Shell" -command "polySelectBorderShell 0";
+menuItem -label "Border" -command "polySelectBorderShell 1";
+menuItem -label "Boundary" -command "SelectPolygonSelectionBoundary;";
+
+setParent MainColumn;
+
+
+/// LAYERS
+
+frameLayout -label " Layers" 
+            -bv 1 -bs "etchedOut" 
+            -bgc 0.5 0.7 0.6 -mw 4 -mh 4
+            -collapse $UTB_switchlayers -collapsable true 
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            LayerFrame;
+		    columnLayout -adjustableColumn false -rowSpacing 0 LayerColumn;
+
+button -w 100 -h 18 -label "SelectedLayerOnly" -command "UTB_selectedLayerOnly";
+button -w 100 -h 18 -label "ShowAllLayers" -command "UTB_dispLayers 1";
+button -w 100 -h 18 -label "HideAllLayers" -command "UTB_dispLayers 0";
+button -w 100 -h 18 -label "ToggleAllLayers" -command "UTB_toggleLayers";
+
+separator -h 4 -w 100 -bgc 0.5 0.7 0.6 -st "none";
+
+button -w 100 -h 18 -label "AddObjectsToLayer" -command "UTB_addToLayer";
+button -w 100 -h 18 -label "SelectLayerObjects" -command "UTB_selectLayerObjects";
+
+
+setParent MainColumn;
+
+
+/// USER
+
+frameLayout -label " User" 
+            -bv 1 -bs "etchedOut" 
+            -bgc 0.7 0.6 0.7 -mw 4 -mh 4
+            -collapse $UTB_switchuser -collapsable true 
+            -cc "UTB_framestateupdate"
+            -ec "UTB_framestateupdate"
+            userFrame;
+		    columnLayout -adjustableColumn false -rowSpacing 0 UserColumn;
+
+            string $UTB_tokens[];
+            string $UTB_unitokens[];
+            string $UTB_loctokens[];
+        
+            int $UTB_eof;
+            
+            // DETERMINE LOCATION OF UNITOOLBOX
+            string $UTB_location = "";
+
+            string $UTB_unipath = `whatIs uniToolBox`;
+            int $UTB_numTokens = `tokenize $UTB_unipath " " $UTB_unitokens`;
+
+            for ( $i = 4; $i < $UTB_numTokens; $i++ )
+            {
+                $UTB_location = $UTB_location + $UTB_unitokens[$i];
+
+                if ( $i < $UTB_numTokens )
+                {
+                    $UTB_location = $UTB_location + " ";
+                }
+            }
+
+            string $UTB_dirname = `dirname $UTB_location`;
+            
+            // FINAL CONFIG LOCATION
+            string $UTB_configname = ($UTB_dirname + "/uniToolBoxUser.txt");
+
+            print ("\n\n config: " +$UTB_configname);
+
+                // ATTEMPT TO OPEN CONFIG
+                int $UTB_filetest = `filetest -r $UTB_configname`;
+
+                // CHECK IF FILE EXISTS
+                if ($UTB_filetest == 0)
+                {
+                text -w 100 -label "Could not find\nuniToolBoxUser.txt\nconfiguration file.\n" -bgc 0.7 0.6 0.7;           
+                }                                           
+                     
+                else
+                {
+         
+                    $UTB_configID = `fopen $UTB_configname "r"`;
+   
+                  
+                    // LOOP UNTIL END OF FILE IS REACHED
+                    while ( `feof $UTB_configID` == 0) 
+                    {
+            
+                        // GET NEXT LINE OF DATA
+                        string $UTB_nextline = `fgetline $UTB_configID`;
+                               
+                        // DOUBLECHECK END OF FILE AFTER FGETLINE    
+                        if ( `feof $UTB_configID` != 0)
+                        {
+                        $UTB_eof = 1;    
+                        break;
+                        }
+                            
+                            // TOKENIZE LINE VALUES AND GET RID OF SPACES
+                            if ($UTB_eof == 0)
+                            {
+                            tokenize $UTB_nextline "," $UTB_tokens;                                                                                                             
+                            evalEcho ("button -w 100 -h 18 -label " + $UTB_tokens[0] + " -command " +  $UTB_tokens[1]);                                                                      
+                            }
+                    }
+                
+                     fclose $UTB_configID; 
+                }
+                
+
+                   
+                separator -h 4 -w 100 -bgc 0.7 0.6 0.7 -st "none";
+                
+                button -w 100 -h 18 -label "About/Help" -command "UTB_about";
+
+
+setParent MainColumn;
+
+
+setParent -top;
+
+formLayout -edit
+
+	-attachForm Scroll "top" 1
+	-attachForm Scroll "left" 1
+	-attachForm Scroll "right" 1
+	-attachForm Scroll "bottom" 1
+
+	UniForm;
+
+
+
+// SET UP APPEARANCE
+
+	switch ($UTB_switch)
+	{
+
+	case 0:
+		showWindow $UTB_win;
+		break;
+	case 1:
+	case 2:
+	case 3:
+		paneLayout -e -cn "horizontal3" -setPane UniForm $UTB_switch ChannelsLayersPaneLayout; 
+		break;
+	}	
+
+}
+
+// =================================== PROCEDURES ================================
+
+
+// TOGGLEWOS
+
+global proc UTB_toggleWOS()
+{
+	string $myWindow = `getPanel -withFocus`;
+	{
+		int $wostoggle = `modelEditor -q -wos $myWindow`;
+		switch ($wostoggle)
+		{
+			case 0: modelEditor -e -wos true $myWindow;
+				break;
+			case 1: modelEditor -e -wos false $myWindow;
+				break;
+			default: break;
+		}
+	}
+}
+
+
+// TOGGLEXRAY
+
+global proc UTB_toggleXRay()
+{
+	string $myWindow = `getPanel -withFocus`;
+	{
+		int $xraytoggle = `modelEditor -q -xray $myWindow`;
+		switch ($xraytoggle)
+		{
+			case 0: modelEditor -e -xray true $myWindow;
+				break;
+			case 1: modelEditor -e -xray false $myWindow;
+				break;
+			default: break;
+		}
+	}
+}
+
+// TOGGLELOCATOR
+
+global proc UTB_toggleLocators()
+{
+	string $myWindow = `getPanel -withFocus`;
+	{
+		int $loctoggle = `modelEditor -q -locators $myWindow`;
+		switch ($loctoggle)
+		{
+			case 0: modelEditor -e -locators true $myWindow;
+				break;
+			case 1: modelEditor -e -locators false $myWindow;
+				break;
+			default: break;
+		}
+	}
+}
+
+
+// TOGGLEVISIBILITY
+
+global proc UTB_toggleVIS ()
+{
+	string $selection[] = `ls -sl`;
+	string $item;
+
+	for ($item in $selection)
+	{
+		setAttr ($item + ".visibility") (!`getAttr ($item + ".visibility")`);
+	}
+}
+
+
+// TRIANGLECOUNT
+
+global proc UTB_triangleCount()
+{
+	
+	string $UTB_mesh[] = `ls -v -type mesh`;
+
+    if (size ($UTB_mesh) == 0)
+    {
+	confirmDialog -t "Done..." -m "This scene contains no visible triangle-meshes." -b "Continue";     
+    return;
+    }
+
+	int $UTB_numtriangles[] = `polyEvaluate -triangle $UTB_mesh`;
+
+	confirmDialog -t "Done..." -m ("The scene has " + $UTB_numtriangles[0] + " visible triangles.") -b "Continue"; 
+}
+
+
+// TEXTURE RELOAD
+
+global proc UTB_reloadTextures ()
+{
+
+    print "\nReloading the following textures: \n------";
+    
+    string $textures [] = `ls -tex`;
+    for ($i=0; $i<size($textures); $i++)
+    	{
+    		string $id = $textures[$i] + ".fileTextureName";
+    		string $name=`getAttr $id`;
+    		print ("\n"+ $name);
+    		setAttr $id -type "string" $name;
+    	}
+    print "\n------\n";
+    print "Texture reload complete: see Script Editor for detailed results.";
+}
+
+
+// CENTER SELECTION TO VIEW
+
+global proc UTB_centerToView ()
+{
+
+string $selection[] = `ls -sl`;
+string $item;
+
+if ( size ($selection) == 0 )
+	{
+	confirmDialog -t "Oops..." -m "Nothing is selected." -b Continue;
+	return;
+	}
+
+	for ($item in $selection)
+	{
+	float $position[] = `autoPlace`;
+    move $position[0] $position[1] $position[2] $item;
+	}
+}
+
+
+// SHOW SELECTED DISPLAY LAYER ONLY			
+
+global proc UTB_selectedLayerOnly() 
+{	
+    string $LT_currentlayer = `editDisplayLayerGlobals -q -currentDisplayLayer`;
+	string $LT_alllayers[] = `ls -type displayLayer`;
+	
+	for ($j=0; $j < size($LT_alllayers); $j++) 
+	   {
+	   if ($LT_alllayers[$j] != $LT_currentlayer && $LT_alllayers[$j] != "defaultLayer" ) 
+	        {
+	        setAttr ($LT_alllayers[$j] + ".visibility") false;
+	        }
+	}
+	setAttr ($LT_currentlayer + ".visibility") true;
+}
+
+// SHOW/HIDE ALL DISPLAY LAYERS
+
+global proc UTB_dispLayers (int $LT_showhide)
+{	
+	string $LT_alllayers[] = `ls -type displayLayer`;
+
+	for ($j=0; $j < size ($LT_alllayers); $j++) 
+	{
+	   if ($LT_alllayers[$j] != "defaultLayer" ) 
+        {
+           setAttr ($LT_alllayers[$j] + ".visibility") $LT_showhide;
+        }
+	}
+}
+
+// TOGGLE DISPLAY LAYER VISIBILITY
+
+global proc UTB_toggleLayers ()
+{
+    string $LT_visAttr[];
+	string $LT_alllayers[] = `ls -type displayLayer`;
+
+	for ($j=0; $j < size ($LT_alllayers); $j++) 
+    {
+   	   if ($LT_alllayers[$j] != "defaultLayer" ) 
+        {        
+    $LT_visAttr[$j] = ( $LT_alllayers[$j] + ".visibility" );
+    setAttr $LT_visAttr[$j] ( !`getAttr $LT_visAttr[$j]` );
+        }
+    }
+}
+
+// ADD SELECTED OBJECTS TO SELECTED LAYER			
+
+global proc UTB_addToLayer() 
+{	
+    string $LT_currentlayer = `editDisplayLayerGlobals -q -currentDisplayLayer`;
+	string $LT_selected[] = `ls -l -sl`;
+	
+	for ($j=0; $j < size($LT_selected); $j++) 
+	   {
+       editDisplayLayerMembers $LT_currentlayer $LT_selected[$j]; 
+       }
+}
+
+// SELECT OBJECTS IN SELECTED LAYER			
+
+global proc UTB_selectLayerObjects() 
+{	
+    string $LT_currentlayer = `editDisplayLayerGlobals -q -currentDisplayLayer`;
+	string $LT_layerObjects[] = `editDisplayLayerMembers -q $LT_currentlayer`;
+	
+	select -r $LT_layerObjects;
+	
+	}
+
+
+// DISCONNECT LIGHTLINKER
+
+global proc UTB_disconnectLightLinker()
+
+{
+	string $UTB_listObjs[] = `listConnections -s 1 -p 1 defaultObjectSet.message`;
+	string $UTB_listLightSet[] = `listConnections -s 1 -p 1 defaultLightSet.message`;
+
+	for ( $UTB_OB in $UTB_listObjs )
+
+	{
+		disconnectAttr defaultObjectSet.message $UTB_OB;
+        print ("\nDisconnected from ObjectSet: " + $UTB_OB);
+	}
+
+	for ( $UTB_LS in $UTB_listLightSet )
+
+	{
+		disconnectAttr defaultLightSet.message $UTB_LS;
+        print ("\nDisconnected from LightSet: " + $UTB_LS);
+	}
+        print "\n";
+}
+
+
+// SHADING SWITCHES
+
+global proc UTB_shading (int $UTB_shadingswitch)
+{
+            string $UTB_currentPanel = `getPanel -withFocus`;
+			string $UTB_panelType = `getPanel -to $UTB_currentPanel`;
+			if ($UTB_panelType == "modelPanel")
+			{
+
+            switch ($UTB_shadingswitch)
+            {
+             
+            // SHADINGMODES 
+             
+            case 0:         
+            polyOptions -cs 0 -cm "none" -gl; 
+            modelEditor -edit -td "modulate" -displayTextures 0 -da "wireframe" $UTB_currentPanel;
+            break;   
+
+            case 1:
+            polyOptions -cs 0 -cm "none" -gl;
+            modelEditor -edit -td "modulate" -displayTextures 0 -da "smoothShaded" $UTB_currentPanel;
+            break;
+            
+            case 2:
+            polyOptions -cs 0 -cm "none" -gl;           
+            modelEditor -edit -td "modulate" -displayTextures 1 -da "smoothShaded" $UTB_currentPanel;			
+            break;
+
+            case 3:
+            polyOptions -cs 1 -cm "none" -gl; 
+            modelEditor -edit -td "modulate" -displayTextures 0 -da "smoothShaded" $UTB_currentPanel;
+            break;
+            
+            case 4:
+            polyOptions -cs 1 -cm "emission" -gl; 
+            modelEditor -edit -td "modulate" -displayTextures 1 -da "smoothShaded" $UTB_currentPanel;
+            break;
+                        
+            
+            case 5:
+            polyOptions -cs 1 -cm "ambientDiffuse" -gl; 
+            modelEditor -edit -td "modulate" -displayTextures 1 -da "smoothShaded" $UTB_currentPanel;
+            break;        
+            
+               
+            // LIGHTS   
+                
+            case 6:         
+            modelEditor -edit -dl "none" $UTB_currentPanel; 
+            break;
+ 
+            case 7:         
+            modelEditor -edit -dl "default" $UTB_currentPanel; 
+            refresh;
+            break;
+
+            case 8:         
+            modelEditor -edit -dl "active" $UTB_currentPanel; 
+            break;
+            
+            case 9:         
+            modelEditor -edit -dl "all" $UTB_currentPanel; 
+            break;
+            }
+
+			}
+            return;
+}
+
+
+// MAPPING PROCESSES
+
+global proc UTB_projPlanar ()
+{
+performPolyProjectionArgList "1" {"0", "Planar", "ls -sl", "0"} "";
+}
+
+global proc UTB_projPlanarO ()
+{
+performPolyProjectionArgList "1" {"1", "Planar", "ls -sl", "0"} "";
+}
+
+global proc UTB_projCylindrical ()
+{
+performPolyProjectionArgList "1" {"0", "Cylindrical", "ls -sl", "0"} "";
+}
+
+global proc UTB_projCylindricalO ()
+{
+performPolyProjectionArgList "1" {"1", "Cylindrical", "ls -sl", "0"} "";
+}
+
+
+// UPDATE STATE OF FRAMES
+
+global proc UTB_framestateupdate()
+{
+
+    int $UTB_switchdisplay = `frameLayout -q -cl DisplayFrame`;
+    int $UTB_switchshading = `frameLayout -q -cl ShadingFrame`;
+    int $UTB_switchnormals = `frameLayout -q -cl NormalFrame`;
+    int $UTB_switchedges = `frameLayout -q -cl EdgeFrame`;
+    int $UTB_switchtriangles = `frameLayout -q -cl TriangleFrame`;
+    int $UTB_switchuv = `frameLayout -q -cl UVFrame`;
+    int $UTB_switchprelight = `frameLayout -q -cl PrelightFrame`;
+    int $UTB_switchselection = `frameLayout -q -cl SelectionFrame`;
+    int $UTB_switchlayers = `frameLayout -q -cl LayerFrame`;
+    int $UTB_switchuser = `frameLayout -q -cl userFrame`;
+
+    optionVar -sv "UTB_switchdisplay" $UTB_switchdisplay;
+    optionVar -sv "UTB_switchshading" $UTB_switchshading;
+    optionVar -sv "UTB_switchnormals" $UTB_switchnormals;
+    optionVar -sv "UTB_switchedges" $UTB_switchedges;
+    optionVar -sv "UTB_switchtriangles" $UTB_switchtriangles;
+    optionVar -sv "UTB_switchuv" $UTB_switchuv;
+    optionVar -sv "UTB_switchprelight" $UTB_switchprelight;
+    optionVar -sv "UTB_switchselection" $UTB_switchselection;
+    optionVar -sv "UTB_switchlayers" $UTB_switchlayers;
+    optionVar -sv "UTB_switchuser" $UTB_switchuser;
+
+}
+    
+global proc UTB_about()
+{
+ 
+       global string $UTB_aboutwin = "UTB_About";
+
+	   if (`window -ex $UTB_aboutwin`) 
+	   {
+	      deleteUI $UTB_aboutwin;
+	   }
+
+       window -t "About uniToolBox V2.0" -rtf 1 -w 300 -s 1 -mnb 1 -mxb 0 $UTB_aboutwin;
+    
+       string $UTB_aboutform = `formLayout -nd 100`;
+       
+    string $UTB_abouttext;
+    
+$UTB_abouttext = $UTB_abouttext + "\nuniToolBox V2.0 (01/2006 - All Rights Reserved)";
+$UTB_abouttext = $UTB_abouttext + "\nby Edvard Toth";
+$UTB_abouttext = $UTB_abouttext + "\nhttp://www.edvardtoth.com";
+$UTB_abouttext = $UTB_abouttext + "\n=========================\n";
+   
+$UTB_abouttext = $UTB_abouttext + "\nINSTALLATION NOTES: You can start the script it with the uniToolBox X; command,";
+$UTB_abouttext = $UTB_abouttext + "where X represents an integer value between 0 and 3, which determines how the script's user interface is rendered. The possible values are:";
+
+$UTB_abouttext = $UTB_abouttext + "\n\nuniToolBox 0; - the script UI is opened in its own window.";
+$UTB_abouttext = $UTB_abouttext + "\nuniToolBox 1; - the script UI is docked at the top of the Channels/Layers panel.";
+$UTB_abouttext = $UTB_abouttext + "\nuniToolBox 2; - the script UI is docked at the middle of the Channels/Layers panel.";
+$UTB_abouttext = $UTB_abouttext + "\nuniToolBox 3; - the script UI is docked at the bottom of the Channels/Layers panel.";
+
+$UTB_abouttext = $UTB_abouttext + "\n\nDESCRIPTION: The script creates a Swiss Army-knife style unified interface featuring contols grouped in collapsible frames for a number of functions and operations. It includes a comprehensive collection of display-property and shading controls, selection conversion, UV-mapping, prelighting and layer commands. The status of the collapsible frames is always remembered, even between Maya-restarts.";
+$UTB_abouttext = $UTB_abouttext + "\n\nPlease note that right-clicking on darker gray buttons will bring up additional sub-commands and/or options. ";
+
+$UTB_abouttext = $UTB_abouttext + "(Important: the buttons will always execute their assigned command using the most recent settings for that particular command. You can access the command's options-window and modify its settings by right-clicking on the button or by locating its option-box within the standard Maya-interface.)";
+
+$UTB_abouttext = $UTB_abouttext + "\n\nTHE USER TAB: The buttons in this tab are configurable by the user through a configuration file called \"uniToolBoxUser.txt\" which should be placed in the same directory (parsed by Maya at startup) where the uniToolBox.mel script itself is located.";
+$UTB_abouttext = $UTB_abouttext + "The file should contain button-listings in the following format:";
+
+$UTB_abouttext = $UTB_abouttext + "\n\nbuttonname1,\"buttoncommand1\"";
+$UTB_abouttext = $UTB_abouttext + "\nbuttonname2,\"buttoncommand2\"";
+$UTB_abouttext = $UTB_abouttext + "\nbuttonname3,\"buttoncommand3\"";
+$UTB_abouttext = $UTB_abouttext + "\netc.";
+
+$UTB_abouttext = $UTB_abouttext + "\n\nFor example:";
+$UTB_abouttext = $UTB_abouttext + "\n\nMakeSphere,\"polySphere -r 1 -tx 1 -ch 1\"";
+$UTB_abouttext = $UTB_abouttext + "\nMeasureDistance,\"pointDistance\"";
+$UTB_abouttext = $UTB_abouttext + "\nTextureOff,\"modelEditor -edit -displayTextures off\"";
+
+$UTB_abouttext = $UTB_abouttext + "\n\nWatch for unwanted extra spaces or line breaks when creating the configuration file, as they can generate additional non-functioning buttons.";
+
+$UTB_abouttext = $UTB_abouttext + "\n\nAnd finally, after executing the script these subroutines can be accessed individually, or even hotkeyed:";
+
+$UTB_abouttext = $UTB_abouttext + "\n\nUTB_toggleWOS;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_toggleXRay;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_toggleLocators;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_toggleVIS;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_triangleCount;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_reloadTextures;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_centerToView;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_selectedLayerOnly;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_dispLayers 0 or 1;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_toggleLayers;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_addToLayer;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_selectLayerObjects;";
+$UTB_abouttext = $UTB_abouttext + "\nUTB_disconnectLightLinker;";
+$UTB_abouttext = $UTB_abouttext + "\n";
+   
+           
+    string $UTB_aboutfield = `scrollField -w 300 -h 200 -ww 1 -ed 0 -fn "smallPlainLabelFont" -text $UTB_abouttext UTB_aboutfield`;  
+    string $UTB_aboutcolumn = `columnLayout -w 300 -columnWidth 300 -adjustableColumn 0 -cal "center" -rowSpacing 0 -cat "both" 5 AboutColumn`;
+    
+    setParent ..;
+    
+         
+    formLayout -edit
+
+ 		-attachForm $UTB_aboutfield "top"  5
+ 		-attachForm $UTB_aboutfield "left"  5
+ 		-attachForm $UTB_aboutfield "right"  5
+ 		-attachForm $UTB_aboutfield "bottom"  5			
+  		
+  		$UTB_aboutform;
+             
+        showWindow;
+    
+}
+
+
+
+
+
+
+

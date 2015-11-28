@@ -1,0 +1,122 @@
+
+//=================================
+// reSource v1.0 (07/2004)
+// by Edvard Toth
+// 
+// The script is freeware / donationware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports, if you created an updated version, to check for updates or to make a donation please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==================================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the reSource; command.
+//
+// COMPATIBILITY NOTE: Tested with Maya 4.0 - 4.5 - 5.0 - 6.0 - 7.0
+//
+// DESCRIPTION: The script is a very handy script-development utility: it allows you to repeatedly source and execute a script-file with a click of a button,
+// greatly simplifying the testing-process.
+// Both the filename (including the full path) and the command-name (including any potential parameters) can be specified either manually or through a browser-window.
+// In addition, these settings are stored as persistent variables and don't have to be re-entered, even if Maya is restarted.
+//
+
+global proc reSource()
+{    
+    global string $RS_window = "reSource";
+
+  	if (`window -ex $RS_window`) 
+   	{
+      deleteUI -window $RS_window;
+   	}
+
+	window -wh 250 120 -rtf 1 -s 1 -mnb 1 -mxb 0 -title "reSource V1.0" $RS_window; 
+
+	string $RS_recentSource = `optionVar -q "RS_recentSource"`;
+	string $RS_recentCommand = `optionVar -q "RS_recentCommand"`;
+
+    if ($RS_recentSource == "0")
+      {
+      $RS_recentSource = "";   
+      }
+
+    if ($RS_recentCommand == "0")
+      {
+      $RS_recentCommand = "";   
+      }
+
+    string $RS_form = `formLayout -numberOfDivisions 100 RS_form`;
+
+    columnLayout -w 250 -adjustableColumn 1 -rowSpacing 1 -cal "center" -co "both" 2 RS_column;
+
+        separator -height 2 -st "none";
+        
+        text -l "File to source:" -align "left";
+	
+        textField -w 250 -text $RS_recentSource RS_sourceFile;
+
+		text -l "Command to execute:" -align "left";
+	
+		textField -w 250 -text $RS_recentCommand RS_sourceCommand;
+	
+		
+    setParent..;
+
+        string $RS_browseButton = `button -w 100 -h 20 -label "Browse" -command "RS_browse()"`;
+        string $RS_sourceButton = `button -w 150 -h 20 -label "Source / Execute" -command "RS_execute()"`;
+
+
+    formLayout -edit
+
+    -attachForm RS_column "left" 2
+    -attachForm RS_column "right" 2
+    -attachForm RS_column "top" 2
+    
+    -attachControl $RS_browseButton "top" 2 RS_column
+    -attachForm $RS_browseButton "left" 2
+    
+    -attachControl $RS_sourceButton "top" 2 RS_column
+    -attachControl $RS_sourceButton "left" 2 $RS_browseButton
+    -attachForm $RS_sourceButton "right" 2
+    
+    $RS_form;
+
+
+	showWindow $RS_window;
+	}
+	
+
+global proc RS_execute()
+{
+	string $RS_file = `textField -q -text RS_sourceFile`;
+	string $RS_command = `textField -q -text RS_sourceCommand`;
+
+	optionVar -sv "RS_recentSource" $RS_file;
+	optionVar -sv "RS_recentCommand" $RS_command;
+
+        if (size ($RS_file) == 0)
+    	{
+    	confirmDialog -t "Oops..." -m "No file is specified." -b Continue;
+    	return;    
+    	}
+
+	string $RS_source = ("source \""+$RS_file+"\"");	
+	
+	eval ($RS_source);
+	eval ($RS_command);
+}
+
+global proc RS_browse()
+{
+    string $RS_tokens[];    
+    string $RS_pickedFile = `fileDialog -dm "*.mel"`;
+    string $RS_filenameonly = match ( "[^/\\]*$", $RS_pickedFile );
+
+    tokenize $RS_filenameonly "." $RS_tokens;
+    
+    string $RS_commandnameonly = $RS_tokens[0];
+
+    textField -e -text $RS_pickedFile RS_sourceFile;
+    textField -e -text $RS_commandnameonly RS_sourceCommand;
+}
+
+    

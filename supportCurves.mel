@@ -1,0 +1,105 @@
+//=============================
+// supportCurves v1.0 (12/2002)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports or if you created an updated version, please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//=============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the supportCurves; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// Select a curve (preferably a non-planar one with vertices distributed on the Y-axis), enter an offset (e.g. 2) and
+// press the "Create Curve" button. The resulting new curve is offset by 2 units in XZ-space, but its CVs inherit their 
+// Y-axis position from the CVs of the original curve. 
+//
+// The script was created to provide a workaround to the problem of tilting/banking of slide/ribbon-like extruded surfaces.
+// Using the script to create offset support-curves it becomes very easy to generate (loft or birail)
+// surfaces that maintain horizontal planarity at every subdivision.
+//
+// NOTES: 
+// Make sure the original curve has frozen transformations to avoid unexpected results.
+// The script deletes all construction history.
+//
+
+global proc supportCurves()
+{
+
+global string $SupWin = "supportCurves";
+
+   if (`window -ex $SupWin`) 
+   {
+      deleteUI $SupWin;
+   }
+
+window -t "supportCurves" -w 150 -h 50 -rtf 1 -s 1 -mnb 1 -mxb 0 $SupWin;
+columnLayout -w 150 -adjustableColumn false -columnWidth 200 -columnAlign "center" -rowSpacing 2 -cat "left" 5 CVColumn;
+floatFieldGrp -cw 1 50 -cat 1 "left" 30 -cw 2 100 -cat 2 "left" 20 -numberOfFields 1 -l "Offset" -pre 4 -v1 0 offset;
+
+separator -h 5 -st "none";
+
+button -w 150 -label "Create Curve" -command "makeSupportCurve";
+
+showWindow; 
+}
+
+global proc makeSupportCurve()
+{
+
+global string $SupWin;
+global float $offset;
+
+global float $originalY[];
+
+$offset = `floatFieldGrp -q -v1 ($SupWin+"|CVColumn|offset")`;
+
+string $curvename[] = `ls -sl`;
+
+int $i = 0;
+int $j = 0;
+	
+if (objExists($curvename[0])&&(nodeType($curvename[0])=="transform"))
+{
+	select $curvename[0];
+
+	int $degree = `getAttr ($curvename[0]+".degree")`;
+	int $spans = `getAttr ($curvename[0]+".spans")`;
+
+	int $CVs =  ($degree + $spans);
+
+
+	for ($i = 0; $i<$CVs; $i++)
+	{
+		select ($curvename[0]+".cv["+$i+"]");
+
+ 		float $xyzA[] = `getAttr ($curvename[0]+".cv["+$i+"]")`;
+
+		$originalY[$i] = $xyzA[1];
+    	}
+
+	offsetCurve  -ch on -rn false -cb 0 -st true -cl false -d $offset -tol 0.3 -sd 5 -ugn false $curvename[0];
+
+	DeleteAllHistory;
+
+	string $newselect[] = `ls -sl`;
+
+	select $newselect[0];	
+
+	for ($j = 0; $j<$CVs; $j++)
+	{
+		select ($newselect[0]+"_1.cv["+$j+"]");
+
+		float $xyzB[] = `getAttr ($newselect[0]+"_1.cv["+$j+"]")`;
+
+		move -ws $xyzB[0] $originalY[$j] $xyzB[2];
+	}
+
+return;
+}
+confirmDialog -m "Please select a curve." -b "Continue";
+}

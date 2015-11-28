@@ -1,0 +1,357 @@
+//=================================
+// batchProcessor V1.0 (01/2005)
+// by Edvard Toth
+// 
+// All Rights Reserved.
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, requests, 
+// bug-reports, if you created an updated version, or to check for updates please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==================================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the batchProcessor; command.
+//
+// COMPATIBILITY NOTE: Tested with Maya 4.0 / 4.5 / 5.0 / 6.0 / 7.0
+//
+
+global proc batchProcessor ()
+{ 
+    global string $BP_window = "batchProcessor";
+    global string $BP_log;  
+    
+    // GET MOST RECENT DIRECTORY
+    string $BP_recentdirectory = `optionVar -q "BP_recentdirectory"`;
+	
+    if ($BP_recentdirectory == "0")
+      {
+      $BP_recentdirectory = "";   
+      }
+    
+    if (`window -ex $BP_window`) 
+   	{
+      deleteUI $BP_window;
+   	}    
+    
+    window -t "batchProcessor V1.0" -rtf 1 -w 350 -s 1 -mnb 1 -mxb 0 $BP_window;
+    
+    
+    // ==== FORM
+    string $BP_form = `formLayout -nd 100`;
+
+    // HEADER
+    string $BP_header = `text -rs 0 -w 350 -al "center" -fn "smallPlainLabelFont" -l "Processing Commands / Script"`;  
+   
+    // COMMANDFIELD   
+    string $BP_commandfield = `scrollField -w 350 -h 50 -ww 1 -ed 1 -fn "smallPlainLabelFont" -text "" -ann "" BP_commandfield`;    
+    
+    // STATUSLINE    
+    string $BP_statusline = `progressBar -h 10 BP_status`;
+    
+    // STARTBUTTON
+    string $BP_startbutton = `button -h 25 -label "Process Files" -command "BP_process"`;
+    
+    // RESETBUTTON
+    string $BP_resetbutton = `button -h 25 -label "Reset" -ann "Reset if processing is interrupted due to command-errors or other problems, then check the log for details." -command "batchProcessor()"`;
+    
+    
+
+    // ==== TABS
+    string $BP_tabs = `tabLayout -sc "scrollField -e -text $BP_log BP_logfield" -innerMarginWidth 2 -innerMarginHeight 10 BP_tablayout`;
+
+    // OPTIONS
+    string $BP_tab1 = `columnLayout -w 350 -columnWidth 350 -adjustableColumn 0 -cal "center" -rowSpacing 0 -cat "both" 5 OptionsColumn`;
+             
+    textFieldButtonGrp -cw3 70 220 50 -l "Directory" -bc "BP_browse()" -bl " Select " -ann "Sets the directory in which Maya-files are going to be processed (example: C:/myfiles/maya/)" -text $BP_recentdirectory BP_directory;
+    separator -height 15 -st "none";       
+
+    radioButtonGrp -cw3 70 60 120 -l "Filter pattern" -nrb 2 -l1 "All files" -l2 "Use wildcard" -sl 1 -offCommand1 "textFieldGrp -e -en 1 BP_wildcard" -onCommand1 "textFieldGrp -e -en 0 BP_wildcard" BP_filter;
+    textFieldGrp -en 0 -cw2 70 220 -l "Wildcard" -text "" -ann "Defines the wildcard-string to filter the files with (examples: *ground* or *.ma)" BP_wildcard;
+    separator -height 10 -st "none";       
+ 
+    radioButtonGrp -cw4 70 75 75 100 -l "Saving" -nrb 3 -l1 "Overwrite" -l2 "Add prefix" -l3 "Add suffix" -sl 1 -offCommand1 "textFieldGrp -e -en 1 BP_prefixsuffix" -onCommand1 "textFieldGrp -e -en 0 BP_prefixsuffix" BP_saving;
+    textFieldGrp -en 0 -cw2 70 220 -l "Prefix/Suffix" -text "" -ann "Defines the prefix/suffix string to be attached to the name of processed files for saving (examples: new- or _test)" BP_prefixsuffix;
+
+    setParent ..;  
+
+    // LOG
+    string $BP_tab2 = `columnLayout -w 350 -columnWidth 350 -adjustableColumn 0 -cal "center" -rowSpacing 0 -cat "both" 5 LogColumn`;
+    text -rs 0 -w 350 -al "center" -fn "smallPlainLabelFont" -l "Recent Processing Log";
+    separator -height 5 -st "none"; 
+    scrollField -w 350 -h 150 -ww 1 -ed 0 -cc "scrollField -e -text $BP_log BP_logfield" -fn "smallPlainLabelFont" -text "" BP_logfield;  
+        popupMenu -p BP_logfield;
+        menuItem -label "Refresh log" -c "scrollField -e -text $BP_log BP_logfield";
+        
+    setParent ..;
+
+    // ABOUT 
+    string $BP_tab3 = `columnLayout -w 350 -columnWidth 350 -adjustableColumn 0 -cal "center" -rowSpacing 0 -cat "both" 5 AboutColumn`;
+    
+    string $BP_abouttext;
+    
+    $BP_abouttext = $BP_abouttext + "\nbatchProcessor V1.0 (01/2005 - All Rights Reserved)";
+    $BP_abouttext = $BP_abouttext + "\nby Edvard Toth";
+    $BP_abouttext = $BP_abouttext + "\nhttp://www.edvardtoth.com";
+    $BP_abouttext = $BP_abouttext + "\n======================";   
+    
+    $BP_abouttext = $BP_abouttext + "\nThe script is a highly versatile batch-processing utility which offers a way to apply virtually any single MEL-command, code-snippet or script to entire directories of Maya-files.";
+    $BP_abouttext = $BP_abouttext + "\nIt provides comprehensive options to control how the files are identified, opened and saved, and it generates a detailed log to help track down any potential processing-interruptions due to command errors or other problems.";
+    
+    $BP_abouttext = $BP_abouttext + "\n\nA simple example: let's say we would like to scale all the contents of every file containing the word 'cube' in the directory C:/myfiles/maya/ by a factor of 5 on the Y axis, then save the resulting modified files with the '_scaled' suffix attached to them.";
+    $BP_abouttext = $BP_abouttext + "\n\nThe settings for this process would be as follows:";
+    $BP_abouttext = $BP_abouttext + "\n  Directory: C:/myfiles/maya/";
+    $BP_abouttext = $BP_abouttext + "\n  File pattern: 'Use wildcard' selected";
+    $BP_abouttext = $BP_abouttext + "\n  Wildcard: *cube*";  
+    $BP_abouttext = $BP_abouttext + "\n  Saving: 'Add suffix' selected";
+    $BP_abouttext = $BP_abouttext + "\n  Prefix/suffix: _scaled";
+    
+    $BP_abouttext = $BP_abouttext + "\n\nThe field reserved for the processing commands would contain the following commands to perform the Y-axis scaling:";
+    
+    $BP_abouttext = $BP_abouttext + "\n\n  select -cl;";
+    $BP_abouttext = $BP_abouttext + "\n  select -all;";
+    $BP_abouttext = $BP_abouttext + "\n  xform -r -os -s 1 5 1;";
+    
+    $BP_abouttext = $BP_abouttext + "\n\nGiven that the files exist and everything is set up correctly, this should do it.";
+    $BP_abouttext = $BP_abouttext + "\nOf course there are no rules regarding how simple or how complex the processing commands are: entire standalone scripts (procedures) could also be used for this purpose.";
+    
+    $BP_abouttext = $BP_abouttext + "\n\nAdditional tips:";
+    $BP_abouttext = $BP_abouttext + "\n- If the processing doesn't complete all they way through, use the Reset button to reset the script, and check the log to identify the stage at which the processing stopped.";
+    $BP_abouttext = $BP_abouttext + "\n- Right-click on the log-field to refresh the contents of the log.";
+    $BP_abouttext = $BP_abouttext + "\n- The most recently used directory is saved as a persistent variable, it's preserved even if Maya is restarted. The rest of the settings are not saved in this manner to prevent accidental (and potentially damaging) processing.";
+    $BP_abouttext = $BP_abouttext + "\n- The directory can be set by browsing and selecting any of the Maya-files residing in the directory.\n";
+        
+    scrollField -w 350 -h 171 -ww 1 -ed 0 -fn "smallPlainLabelFont" -text $BP_abouttext BP_aboutfield;  
+    
+    setParent ..;
+    
+      
+         
+    formLayout -edit
+
+ 		-attachForm $BP_tabs "top"    0
+  		-attachForm $BP_tabs "left"   0
+  		-attachNone $BP_tabs "bottom" 
+  		-attachForm $BP_tabs "right"  0
+  	
+  	    -attachControl $BP_header "top" 3 $BP_tabs
+  	    -attachForm $BP_header "left"   0
+  		-attachForm $BP_header "right"  0
+  		-attachNone $BP_header "bottom"
+  		
+  	    -attachControl $BP_commandfield "top" 3 $BP_header
+  	    -attachForm $BP_commandfield "left"   0
+  		-attachForm $BP_commandfield "right" 0  
+  		-attachControl $BP_commandfield "bottom" 3 $BP_statusline
+  		   	
+  		-attachNone $BP_statusline "top"  
+  		-attachForm $BP_statusline "left" 0
+  		-attachForm $BP_statusline "right"  0
+        -attachControl $BP_statusline "bottom" 3 $BP_startbutton  		  	
+  		   	
+  		-attachNone $BP_startbutton "top"   
+  		-attachForm $BP_startbutton "left" 0
+  		-attachPosition $BP_startbutton "right"  0 85
+        -attachForm $BP_startbutton "bottom" 0     		    		
+  		
+  		-attachNone $BP_resetbutton "top"   
+  		-attachControl $BP_resetbutton "left" 0 $BP_startbutton
+  		-attachForm $BP_resetbutton "right"  0
+        -attachForm $BP_resetbutton "bottom" 0   		    		
+  		
+  		
+  		
+  		$BP_form;
+      
+        tabLayout -e -tabLabel $BP_tab1 "Options" -tabLabel $BP_tab2 "Log" -tabLabel $BP_tab3 "About" $BP_tabs; 
+        
+    
+    showWindow;
+}
+
+
+// ==== PROCESS
+
+global proc BP_process ()
+{          
+    
+    int $BP_unsaved = `file -q -mf`;
+    
+    if ($BP_unsaved == 1)
+    {
+    confirmDialog -t "Oops..." -m ("Your current file contains unsaved changes. Please save the file first.") -b "Continue";
+    return;      
+    } 
+    
+    // CLEAR LOG
+    global string $BP_log;
+    $BP_log = "";
+    scrollField -e -cl BP_logfield;
+      
+    string $BP_path = `textFieldButtonGrp -q -text BP_directory`;
+    string $BP_file;
+    
+    string $BP_filelist[];
+    string $BP_filelistmb[];
+    string $BP_filteredlist[];
+    
+    string $BP_wildcard;
+    int $BP_wildcardmatch;
+    
+    int $BP_saving = `radioButtonGrp -q -sl BP_saving`;
+    string $BP_prefixsuffix = `textFieldGrp -q -text BP_prefixsuffix`;
+    
+    string $BP_command = `scrollField -q -text BP_commandfield`;
+    int $BP_commandsize = `size $BP_command`;
+    
+    string $BP_errorcheck;
+        
+            
+    // PUT TOGETHER .MA AND .MB FILES
+    $BP_filelist = `getFileList -fld $BP_path -fs "*.ma"`;   
+    $BP_filelistmb = `getFileList -fld $BP_path -fs "*.mb"`;   
+    appendStringArray ($BP_filelist, $BP_filelistmb, size($BP_filelistmb));  
+
+    int $BP_filter = `radioButtonGrp -q -sl BP_filter`;
+    
+        // FILTER THE FILELIST USING THE WILDCARD STRING          
+        if ($BP_filter == 2)
+        {      
+            int $j = 0;
+            $BP_wildcard = `textFieldGrp -q -text BP_wildcard`;
+        
+            if (size ($BP_wildcard) == 0)
+            {
+            confirmDialog -t "Oops..." -m ("Please specify a wildcard string.") -b "Continue";
+            return;   
+            }
+                int $BP_listsize = size ($BP_filelist);
+        
+                for ($i=0; $i < $BP_listsize; $i++)
+                {
+                 $BP_wildcardmatch = `gmatch $BP_filelist[$i] $BP_wildcard`;
+                       
+                        if ($BP_wildcardmatch == 1)
+                        {
+                        $BP_filteredlist[$j] = $BP_filelist[$i];
+                        $j++;    
+                        }                                              
+                }      
+               
+                $BP_filelist = $BP_filteredlist;
+        }
+          
+        int $BP_listsize = size ($BP_filelist);
+        
+        if ($BP_listsize == 0)
+        {
+        confirmDialog -t "Oops..." -m ("Directory [" + $BP_path + "] contains no matching files to process.") -b "Continue";
+        return;         
+        }
+         
+        
+        // CHECK PREFIXSUFFIX FOR SIZE AND ILLEGAL CHARACTERS
+        if ($BP_saving == 2 || $BP_saving == 3)
+        {
+            if (size ($BP_prefixsuffix) == 0)
+            {
+            confirmDialog -t "Oops..." -m ("Please specify a prefix/suffix string.") -b "Continue";
+            return;   
+            }    
+            else
+            {
+            string $BP_prefixsuffixcheck = `match "[@#$%&*?\\/.;:|~]" $BP_prefixsuffix`; 
+                       
+                if (size ($BP_prefixsuffixcheck) != 0)
+                {
+                confirmDialog -t "Oops..." -m ("The prefix/suffix contains illegal characters.") -b "Continue";
+                return;       
+                }               
+            }             
+        }
+               
+    progressBar -e -beginProgress -maxValue $BP_listsize BP_status;
+    
+    // === OPENING / SAVING FILES
+        
+    $BP_log = ($BP_log + "\n === Starting processing in path " + $BP_path); 
+        
+    for ($i=0; $i < $BP_listsize; $i++)
+        {                                             
+        progressBar -e -step 1 BP_status;                
+        
+        $BP_file = $BP_path + $BP_filelist[$i];         
+        $BP_log = ($BP_log + "\n\n Opening file " + ($i+1) + " / " + $BP_listsize + ": " + $BP_filelist[$i]);
+        
+        // ==========================     
+        file -prompt 0 -open $BP_file;
+        $BP_log = ($BP_log + "\n   File opened.");             
+                    
+            // EXECUTE COMMAND
+            if ($BP_commandsize != 0)
+            {                
+            $BP_log = ($BP_log + "\n       Executing processing commands...");              
+            $BP_errorcheck = `eval $BP_command`;         
+            $BP_log = ($BP_log + "\n       Commands executed."); 
+            }               
+            
+            switch ($BP_saving)
+            {
+            // OVERWRITE
+            case 1:
+            $BP_log = ($BP_log + "\n Saving file as: " + $BP_filelist[$i]);  
+            file -prompt 0 -save;              
+            $BP_log = ($BP_log + "\n   File saved.");  
+            break;
+            
+            // PREFIX
+            case 2:
+            string $BP_modifiedfile = $BP_path + $BP_prefixsuffix + $BP_filelist[$i];
+            $BP_log = ($BP_log + "\n Saving file as: " + $BP_prefixsuffix + $BP_filelist[$i]);              
+            file -rn $BP_modifiedfile;
+            file -prompt 0 -save;
+            $BP_log = ($BP_log + "\n   File saved."); 
+            break;
+            
+            // SUFFIX
+            case 3:
+            string $BP_filenamesplit[];
+            int $BP_tokens = `tokenize $BP_filelist[$i] "." $BP_filenamesplit`;        
+            string $BP_modifiedfile = ($BP_path + $BP_filenamesplit[0] + $BP_prefixsuffix + "." + $BP_filenamesplit[1]);
+            $BP_log = ($BP_log + "\n Saving file as: " + $BP_filenamesplit[0] + $BP_prefixsuffix + "." + $BP_filenamesplit[1]); 
+            file -rn $BP_modifiedfile;
+            file -prompt 0 -save;
+            $BP_log = ($BP_log + "\n   File saved.");            
+            break;  
+            }                                         
+        }
+        // ===========================   
+        
+        progressBar -e -endProgress BP_status;
+
+        $BP_log = ($BP_log + "\n\n === Successfully processed " + $BP_listsize + " files.\n");    
+
+        scrollField -e -text $BP_log BP_logfield;              
+}
+
+
+
+// ==== BROWSE
+
+global proc BP_browse ()
+
+{
+    string $BP_pickedfile = `fileDialog -dm "*.mb; *.ma"`;    
+    string $BP_dirname = `dirname $BP_pickedfile`;
+    
+        if (size ($BP_dirname) == 0)
+        {
+        confirmDialog -t "Oops..." -m "Please pick a valid file to identify working directory." -b "Continue";
+        return;       
+        }
+    
+    $BP_dirname = $BP_dirname + "/";          
+    
+    optionVar -sv "BP_recentdirectory" $BP_dirname;
+    textFieldButtonGrp -e -text $BP_dirname BP_directory;
+}

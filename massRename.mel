@@ -1,0 +1,158 @@
+
+//==============================
+// massRename v1.2 (02/2003)
+// by Edvard Toth 
+// 
+// The script is freeware. Non-commercial redistribution is permitted as long as this header remains included and unmodified.
+// Your feedback is always appreciated - if you find the script useful or if you have questions, comments, suggestions, 
+// requests, bug-reports, if you created an updated version, or to check for updates please contact me at:
+//
+// http://www.edvardtoth.com
+// 
+//==============================
+// INSTALLATION: Copy the script into your Maya script-directory and start it with the massRename; command.
+//
+// COMPATIBILITY NOTE: Tested only with Maya4.0
+//
+// DESCRIPTION:
+// The script provides a very easy-to-use solution for renaming a large number of nodes.
+// 
+// It features an adjustable starting-number and padding for the renamed nodes, two options for a divider character that
+// separates the new node-name from the node-number and a reorder-function that sorts the nodes into ascending 
+// order.
+// It also works even when nodes from multiple levels of the node-hierarchy are selected at the same time.
+//
+
+global proc massRename()
+{
+
+global string $MRN_Win = "massRename";
+
+   if (`window -ex $MRN_Win`) 
+   {
+      deleteUI $MRN_Win;
+   }
+
+window -t "massRename v1.2" -rtf 1 -s 1 -mnb 1 -mxb 0 $MRN_Win;
+
+string $MRN_form = `formLayout -numberOfDivisions 100 MRN_Form`;
+
+
+rowLayout -w 260 -h 70 -nc 2 -cw2 100 160 -ct2 "both" "both" MRN_Row;
+
+columnLayout -adjustableColumn false -columnWidth 100 -h 70 -columnAlign "left" -rowSpacing 4 -cat "left" 5 MRN_Column1;
+
+separator -h 1 -st "none";
+text -l "New name" -ann "This string is what the nodes are going to be renamed to.";
+text -l "Starting number" -ann "The number of the first renamed node (e.g. `newname_19`).";
+text -l "Padding" -ann "The amount of digits the node-number is going to be formatted to (e.g. a value of 4 will generate `newname_0019` instead of `newname_19`).";
+text -l "Divider character" -ann "The character that separates the name of the node from the number of the node.";
+
+setParent MRN_Row;
+
+columnLayout -adjustableColumn false -columnWidth 160 -h 70 -columnAlign "left" -rowSpacing 2 -cat "left" 5 MRN_Column2;
+
+textField -w 150 -tx "newname" MRN_newname;
+intField -w 30 -v 0 -min 0 -max 999 -s 1 MRN_startcount;
+intField -w 30 -v 0 -min 0 -max 8 -s 1 MRN_padding;
+radioButtonGrp -nrb 2 -cw2 80 70 -ct2 "left" "left" -cl2 "left" "left" -labelArray2 "underscore" "nothing" -sl 1 MRN_divider;
+
+
+setParent MRN_Row;
+
+setParent ..;
+
+string $MRN_renamebutton = `button -w 150 -h 25 -label "Rename Nodes" -ann "Performs the renaming operation." -command "MRN_doTheRename"`;
+string $MRN_reorderbutton = `button -w 95 -h 25 -label "Reorder Nodes" -ann "Sorts the selected nodes into ascending order and moves them to the bottom of the node-list." -command "MRN_doTheReorder"`;
+
+formLayout -edit
+
+-attachForm MRN_Row "top" 5
+-attachForm MRN_Row "left" 5
+-attachForm MRN_Row "right" 5
+
+-attachControl $MRN_renamebutton "top" 5 MRN_Row
+-attachForm $MRN_renamebutton "left" 10
+
+-attachControl $MRN_reorderbutton "top" 5 MRN_Row
+-attachControl $MRN_reorderbutton "left" 5 $MRN_renamebutton
+
+$MRN_form;
+setParent ..;
+
+
+showWindow; 
+}
+
+global proc MRN_doTheRename ()
+{
+	string $MRN_newname = `textField -q -tx MRN_newname`;
+	int $MRN_startcount = `intField -q -v MRN_startcount`;
+	int $MRN_padding = `intField -q -v MRN_padding`;
+
+	int $MRN_divstatus = `radioButtonGrp -q -sl MRN_divider`;
+	string $MRN_divider;
+
+	switch ($MRN_divstatus)
+	{
+	case 1:
+	string $MRN_newname = $MRN_newname + "_";
+	break;
+
+	case 2:
+	string $MRN_newname = $MRN_newname + "";
+	break;
+	}
+
+	string $MRN_selected[];
+	clear $MRN_selected;
+		
+		string $MRN_selected[] = `ls -sl`;
+		int $MRN_count = size ($MRN_selected);
+	
+
+		if ( $MRN_count == 0)
+		{ 
+		confirmDialog -t "Oops..." -m "Please select nodes to rename." -b Continue;
+		return;
+		}
+
+		for($i = 0 ; $i<$MRN_count ; $i++)
+		{
+
+		string $MRN_selected[] = `ls -sl`; // REFRESH NODE-LIST
+
+		string $MRN_name = "";
+	
+		int $MRN_number = $i + $MRN_startcount; 
+	
+		    	string $MRN_padstring = "";
+		    	
+		    	for ($j=1; $j < $MRN_padding; ++$j)
+		    	    {
+			    if ($MRN_number < pow(10, $j) )
+			        $MRN_padstring += "0";
+		    }
+		
+		$MRN_name = ($MRN_newname + $MRN_padstring + $MRN_number);
+
+
+		rename $MRN_selected[$i] $MRN_name;	
+		}
+
+		clear $MRN_selected;
+}
+
+
+global proc MRN_doTheReorder ()
+{
+
+string $MRN_nodes[] = `ls -sl`;
+
+	for($node in $MRN_nodes)
+	{
+	reorder -b $node;
+	}
+	sort $MRN_nodes;
+
+}
