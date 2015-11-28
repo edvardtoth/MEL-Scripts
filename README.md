@@ -2,9 +2,9 @@
 
 A collection of legacy MEL scripts for Maya done between 2002-2006 by **Edvard Toth** (http://edvardtoth.com)
 
-Apart from my confidential, proprietary game-development scripting work I also created a number of freely available, more generic scripts which in their heyday managed to accumulate well over 80.000 total downloads combined. I even received the honor of being included in Pixel Magazine’s `World’s Best Maya Developers` feature.
+Apart from my confidential, proprietary game-development scripting work I also created a number of freely available, more generic scripts which in their heyday managed to accumulate well over 80.000 total combined downloads. I even received the honor of being included in Pixel Magazine’s "World’s Best Maya Developers" feature.
 
-Please note that even though the scripts are not supported or updated anymore, they may still prove to be useful. Please always refer to the script-headers for more thorough documentation.
+Please note that even though the scripts **are not supported or updated anymore**, they may still prove to be useful. Please always refer to the script-headers for more thorough documentation.
 
 Contents
 ----------
